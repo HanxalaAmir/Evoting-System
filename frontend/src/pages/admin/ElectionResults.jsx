@@ -1,12 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AdminLayout from "../../layouts/AdminLayout";
+import { electionAPI } from "../../services/api";
 import {
   FiSearch,
   FiFilter,
   FiDownload,
   FiCalendar,
   FiCheckCircle,
-  FiTrendingUp,
   FiUser,
   FiActivity,
   FiX,
@@ -15,105 +15,52 @@ import {
   FiFileText,
   FiEye,
   FiAward,
+  FiLoader,
+  FiAlertCircle,
+  FiRefreshCw,
 } from "react-icons/fi";
 
 const ElectionResults = () => {
+  // --- STATE ---
+  const [results, setResults] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const [isExporting, setIsExporting] = useState(false); // Global export
-  const [isSingleExporting, setIsSingleExporting] = useState(false); // Specific election export
-  const [selectedElection, setSelectedElection] = useState(null); // For Modal
+  const [isExporting, setIsExporting] = useState(false);
+  const [isSingleExporting, setIsSingleExporting] = useState(false);
+  const [selectedElection, setSelectedElection] = useState(null);
 
-  // --- MOCK DATA (Matches Creation Fields) ---
-  const [results] = useState([
-    {
-      id: "E-2024-001",
-      title: "Student Council President",
-      description: "Annual election for the student body president.",
-      date: "2024-01-15",
-      startTime: "09:00",
-      endTime: "17:00",
-      totalVotes: 1240,
-      turnout: "78%",
-      candidates: [
-        {
-          name: "Sarah Jenkins",
-          designation: "Future Vision",
-          party: "Independent",
-          votes: 650,
-          color: "bg-purple-500",
-        },
-        {
-          name: "Michael Chen",
-          designation: "Tech Forward",
-          party: "Unity Party",
-          votes: 410,
-          color: "bg-blue-500",
-        },
-        {
-          name: "Jessica Alba",
-          designation: "Green Campus",
-          party: "Eco Club",
-          votes: 180,
-          color: "bg-emerald-500",
-        },
-      ],
-    },
-    {
-      id: "E-2023-012",
-      title: "Sports Committee Head",
-      description: "Head of inter-university sports affairs.",
-      date: "2023-12-10",
-      startTime: "08:00",
-      endTime: "16:00",
-      totalVotes: 890,
-      turnout: "62%",
-      candidates: [
-        {
-          name: "Alex Johnson",
-          designation: "Fit Future",
-          party: "Sports Union",
-          votes: 516,
-          color: "bg-orange-500",
-        },
-        {
-          name: "Sam Wilson",
-          designation: "Iron Lifters",
-          party: "Gym Club",
-          votes: 374,
-          color: "bg-red-500",
-        },
-      ],
-    },
-    {
-      id: "E-2023-011",
-      title: "Cultural Secretary",
-      description: "Managing cultural events and societies.",
-      date: "2023-11-25",
-      startTime: "10:00",
-      endTime: "18:00",
-      totalVotes: 1102,
-      turnout: "81%",
-      candidates: [
-        {
-          name: "Sarah Connor",
-          designation: "Art & Soul",
-          party: "Arts Club",
-          votes: 683,
-          color: "bg-pink-500",
-        },
-        {
-          name: "Kyle Reese",
-          designation: "Drama Club",
-          party: "Theater Grp",
-          votes: 419,
-          color: "bg-gray-500",
-        },
-      ],
-    },
-  ]);
+  // --- API FETCHING ---
+  const fetchResults = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await electionAPI.getAll();
+
+      // Filter for elections that are effectively "Results" (Completed or Ended)
+      const archived = response.data.filter(
+        (e) => e.status === "Completed" || e.status === "Ended",
+      );
+
+      setResults(archived);
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(
+        "Failed to load election archive. Please check your connection.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchResults();
+  }, []);
 
   // --- FILTER LOGIC ---
   const filteredResults = results.filter((r) => {
@@ -127,9 +74,10 @@ const ElectionResults = () => {
     return matchesSearch && matchesFrom && matchesTo;
   });
 
-  // --- HANDLERS ---
+  // --- HELPERS ---
   const handleExport = () => {
     setIsExporting(true);
+    // TODO: Call API endpoint for bulk export
     setTimeout(() => {
       setIsExporting(false);
       alert(`Report generated for ${filteredResults.length} elections.`);
@@ -138,18 +86,18 @@ const ElectionResults = () => {
 
   const handleSingleExport = () => {
     setIsSingleExporting(true);
-    // Simulate generation delay
+    // TODO: Call API endpoint for single export
     setTimeout(() => {
       setIsSingleExporting(false);
-      alert(
-        `Official PDF Certificate for "${selectedElection.title}" downloaded.`
-      );
+      alert(`Official PDF for "${selectedElection.title}" downloaded.`);
     }, 2000);
   };
 
   const getWinner = (candidates) => {
+    if (!candidates || candidates.length === 0)
+      return { name: "N/A", designation: "-", color: "bg-slate-700" };
     return candidates.reduce((prev, current) =>
-      prev.votes > current.votes ? prev : current
+      prev.votes > current.votes ? prev : current,
     );
   };
 
@@ -166,39 +114,37 @@ const ElectionResults = () => {
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
             Election Results Archive
-            <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-xs font-bold rounded-full border border-indigo-500/20">
-              {filteredResults.length} Records
-            </span>
+            {!isLoading && (
+              <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-xs font-bold rounded-full border border-indigo-500/20">
+                {filteredResults.length} Records
+              </span>
+            )}
           </h1>
           <p className="text-slate-400 text-sm mt-2 max-w-xl">
-            Official records of all finalized elections. Use the date filters
-            below to generate specific reports.
+            Official records of all finalized elections. Data sourced directly
+            from the secure ledger.
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-          <button
-            onClick={handleExport}
-            disabled={isExporting}
-            className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-wait font-semibold text-sm"
-          >
-            {isExporting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                Processing PDF...
-              </>
-            ) : (
-              <>
-                <FiDownload className="w-4 h-4" /> Export Report
-              </>
-            )}
-          </button>
-        </div>
+        <button
+          onClick={handleExport}
+          disabled={isExporting || isLoading || results.length === 0}
+          className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm w-full lg:w-auto"
+        >
+          {isExporting ? (
+            <>
+              <FiLoader className="animate-spin" /> Processing...
+            </>
+          ) : (
+            <>
+              <FiDownload className="w-4 h-4" /> Export Bulk Report
+            </>
+          )}
+        </button>
       </div>
 
-      {/* --- FILTER BAR (Date Range & Search) --- */}
-      <div className="bg-slate-800/40 border border-slate-700/50 p-4 rounded-2xl mb-6 animate-slide-up flex flex-col md:flex-row gap-4 items-center">
-        {/* Search */}
+      {/* --- FILTER BAR --- */}
+      <div className="bg-slate-800/40 border border-slate-700/50 p-4 rounded-2xl mb-6 animate-slide-up flex flex-col md:flex-row gap-4 items-center shadow-lg">
         <div className="relative flex-1 w-full">
           <FiSearch className="absolute left-4 top-3.5 text-slate-500" />
           <input
@@ -209,8 +155,6 @@ const ElectionResults = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-
-        {/* Date From */}
         <div className="relative w-full md:w-auto">
           <div className="absolute left-4 top-3.5 text-slate-500 pointer-events-none">
             <FiCalendar />
@@ -222,10 +166,7 @@ const ElectionResults = () => {
             onChange={(e) => setDateFrom(e.target.value)}
           />
         </div>
-
         <span className="text-slate-500 hidden md:block">to</span>
-
-        {/* Date To */}
         <div className="relative w-full md:w-auto">
           <div className="absolute left-4 top-3.5 text-slate-500 pointer-events-none">
             <FiCalendar />
@@ -237,8 +178,6 @@ const ElectionResults = () => {
             onChange={(e) => setDateTo(e.target.value)}
           />
         </div>
-
-        {/* Clear */}
         {(searchTerm || dateFrom || dateTo) && (
           <button
             onClick={clearFilters}
@@ -250,115 +189,140 @@ const ElectionResults = () => {
         )}
       </div>
 
-      {/* --- RESULTS TABLE --- */}
-      <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl overflow-hidden shadow-xl animate-slide-up backdrop-blur-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[900px]">
-            <thead>
-              <tr className="bg-slate-900/50 text-xs uppercase tracking-wider text-slate-400 font-semibold border-b border-slate-700/50">
-                <th className="p-5 pl-6">Election Title / ID</th>
-                <th className="p-5">Schedule</th>
-                <th className="p-5">Winner</th>
-                <th className="p-5">Total Votes</th>
-                <th className="p-5 text-right pr-6">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700/50 text-sm">
-              {filteredResults.map((result) => {
-                const winner = getWinner(result.candidates);
-                return (
-                  <tr
-                    key={result.id}
-                    className="hover:bg-slate-800/30 transition-colors group"
-                  >
-                    {/* Election Info */}
-                    <td className="p-5 pl-6">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-white text-base mb-1">
-                          {result.title}
-                        </span>
-                        <span className="text-xs font-mono text-slate-500 bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/50 w-fit">
-                          {result.id}
-                        </span>
-                      </div>
-                    </td>
+      {/* --- CONTENT AREA --- */}
+      <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl overflow-hidden shadow-xl animate-slide-up backdrop-blur-sm min-h-[300px] relative">
+        {/* Loading State */}
+        {isLoading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 z-10">
+            <FiLoader className="w-10 h-10 text-rose-500 animate-spin mb-3" />
+            <p className="text-slate-400 text-sm">Retrieving archives...</p>
+          </div>
+        )}
 
-                    {/* Schedule */}
-                    <td className="p-5 text-slate-400">
-                      <div className="flex flex-col gap-1 text-xs">
-                        <span className="flex items-center gap-2">
-                          <FiCalendar className="text-rose-400" /> {result.date}
-                        </span>
-                        <span className="flex items-center gap-2">
-                          <FiClock className="text-rose-400" />{" "}
-                          {result.startTime} - {result.endTime}
-                        </span>
-                      </div>
-                    </td>
+        {/* Error State - Styled to Match AdminDashboard */}
+        {error && !isLoading && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="bg-red-500/10 p-4 rounded-full mb-4">
+              <FiAlertCircle className="w-8 h-8 text-red-500" />
+            </div>
+            <h3 className="text-lg font-bold text-white mb-1">
+              Connection Error
+            </h3>
+            <p className="text-slate-400 mb-6 max-w-md">{error}</p>
 
-                    {/* Winner */}
-                    <td className="p-5">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-lg ${winner.color} text-xs`}
-                        >
-                          {winner.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="text-white font-semibold text-sm">
-                            {winner.name}
-                          </p>
-                          <p className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 inline-block">
-                            {winner.designation}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
+            <button
+              onClick={fetchResults}
+              className="flex items-center gap-2 px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-500/20 transition-all active:scale-95 text-sm font-bold"
+            >
+              <FiRefreshCw className="w-4 h-4" /> Try Again
+            </button>
+          </div>
+        )}
 
-                    {/* Stats */}
-                    <td className="p-5">
-                      <div className="flex items-center gap-2 text-white font-mono">
-                        <FiBox className="text-blue-400" /> {result.totalVotes}
-                        <span className="text-slate-500 text-xs">
-                          ({result.turnout})
-                        </span>
-                      </div>
-                    </td>
+        {/* Empty State */}
+        {!isLoading && !error && filteredResults.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4">
+              <FiSearch className="w-6 h-6 text-slate-500" />
+            </div>
+            <p className="text-slate-400">
+              No finalized elections found matching your filters.
+            </p>
+            {(searchTerm || dateFrom) && (
+              <button
+                onClick={clearFilters}
+                className="text-rose-400 text-sm font-bold mt-2 hover:underline"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+        )}
 
-                    {/* Actions */}
-                    <td className="p-5 pr-6 text-right">
-                      <button
-                        onClick={() => setSelectedElection(result)}
-                        className="text-xs font-semibold bg-slate-700/50 hover:bg-indigo-600 hover:text-white text-slate-300 border border-slate-600 hover:border-indigo-500 px-4 py-2 rounded-lg transition-all flex items-center gap-2 ml-auto"
-                      >
-                        <FiEye /> View Details
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {filteredResults.length === 0 && (
-                <tr>
-                  <td colSpan="5" className="p-12 text-center text-slate-500">
-                    <div className="flex flex-col items-center justify-center gap-4">
-                      <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center">
-                        <FiSearch className="w-6 h-6 opacity-40" />
-                      </div>
-                      <p>No records found matching your filters.</p>
-                      <button
-                        onClick={clearFilters}
-                        className="text-rose-400 hover:text-rose-300 text-sm font-semibold hover:underline"
-                      >
-                        Reset all filters
-                      </button>
-                    </div>
-                  </td>
+        {/* Results Table */}
+        {!isLoading && !error && filteredResults.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[900px]">
+              <thead>
+                <tr className="bg-slate-900/50 text-xs uppercase tracking-wider text-slate-400 font-semibold border-b border-slate-700/50">
+                  <th className="p-5 pl-6">Election Title / ID</th>
+                  <th className="p-5">Schedule</th>
+                  <th className="p-5">Winner</th>
+                  <th className="p-5">Total Votes</th>
+                  <th className="p-5 text-right pr-6">Actions</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-700/50 text-sm">
+                {filteredResults.map((result) => {
+                  const winner = getWinner(result.candidates);
+                  return (
+                    <tr
+                      key={result.id}
+                      className="hover:bg-slate-800/30 transition-colors group"
+                    >
+                      <td className="p-5 pl-6">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-white text-base mb-1">
+                            {result.title}
+                          </span>
+                          <span className="text-xs font-mono text-slate-500 bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/50 w-fit">
+                            {result._id || result.id}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-5 text-slate-400">
+                        <div className="flex flex-col gap-1 text-xs">
+                          <span className="flex items-center gap-2">
+                            <FiCalendar className="text-rose-400" />{" "}
+                            {new Date(result.date).toLocaleDateString()}
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <FiClock className="text-rose-400" />{" "}
+                            {result.startTime} - {result.endTime}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-5">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-lg ${winner.color || "bg-slate-600"} text-xs`}
+                          >
+                            {winner.name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="text-white font-semibold text-sm">
+                              {winner.name}
+                            </p>
+                            <p className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 inline-block">
+                              {winner.designation}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-5">
+                        <div className="flex items-center gap-2 text-white font-mono">
+                          <FiBox className="text-blue-400" />{" "}
+                          {result.totalVotes || 0}
+                          <span className="text-slate-500 text-xs">
+                            ({result.turnout || "0"}%)
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-5 pr-6 text-right">
+                        <button
+                          onClick={() => setSelectedElection(result)}
+                          className="text-xs font-semibold bg-slate-700/50 hover:bg-indigo-600 hover:text-white text-slate-300 border border-slate-600 hover:border-indigo-500 px-4 py-2 rounded-lg transition-all flex items-center gap-2 ml-auto shadow-sm hover:shadow-indigo-500/20"
+                        >
+                          <FiEye /> View Details
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <div className="p-3 border-t border-slate-700/50 bg-slate-900/30 text-center">
           <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold flex items-center justify-center gap-2">
@@ -385,9 +349,9 @@ const ElectionResults = () => {
                 </div>
                 <p className="text-slate-400 text-sm flex items-center gap-2">
                   <span className="font-mono text-slate-500">
-                    {selectedElection.id}
+                    {selectedElection._id || selectedElection.id}
                   </span>{" "}
-                  • {selectedElection.date}
+                  • {new Date(selectedElection.date).toLocaleDateString()}
                 </p>
               </div>
               <button
@@ -400,12 +364,11 @@ const ElectionResults = () => {
 
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-6">
-              {/* Description & Meta */}
               <div className="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50 text-sm text-slate-300 leading-relaxed">
                 <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center gap-2">
                   <FiFileText /> Election Description
                 </h4>
-                {selectedElection.description}
+                {selectedElection.description || "No description provided."}
                 <div className="mt-4 flex gap-6 pt-4 border-t border-slate-700/50">
                   <div className="flex items-center gap-2">
                     <FiClock className="text-rose-400" />{" "}
@@ -416,13 +379,12 @@ const ElectionResults = () => {
                   <div className="flex items-center gap-2">
                     <FiActivity className="text-emerald-400" />{" "}
                     <span className="text-white">
-                      {selectedElection.turnout} Turnout
+                      {selectedElection.turnout || 0}% Turnout
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Candidates Table */}
               <div>
                 <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
                   <FiUser className="text-indigo-400" /> Final Vote Breakdown
@@ -439,11 +401,12 @@ const ElectionResults = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/50 bg-slate-800/20">
-                      {selectedElection.candidates
+                      {(selectedElection.candidates || [])
                         .sort((a, b) => b.votes - a.votes)
                         .map((candidate, index) => {
+                          const total = selectedElection.totalVotes || 1;
                           const percent = (
-                            (candidate.votes / selectedElection.totalVotes) *
+                            (candidate.votes / total) *
                             100
                           ).toFixed(1);
                           const isWinner = index === 0;
@@ -501,8 +464,7 @@ const ElectionResults = () => {
               >
                 {isSingleExporting ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    Generating PDF...
+                    <FiLoader className="animate-spin" /> Generating PDF...
                   </>
                 ) : (
                   <>
