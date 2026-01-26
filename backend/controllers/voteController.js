@@ -1,122 +1,123 @@
 const supabase = require('../config/supabaseClient');
-const crypto = require('crypto'); // Built-in Node module for hashing
+const asyncHandler = require('../middleware/asyncHandler');
+const AppError = require('../utils/AppError');
 
-// --- 1. CAST VOTE ---
-const castVote = async (req, res) => {
-  const { electionId, candidateId } = req.body;
+const castVote = asyncHandler(async (req, res, next) => {
+  const { electionId, candidateId, indexNumber } = req.body;
   const userId = req.user.id;
 
-  try {
-    // A. Check if user already voted (Double Vote Prevention)
-    const { data: existingVote } = await supabase
-      .from('votes')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('election_id', electionId)
-      .maybeSingle();
+  if (!electionId || !candidateId || !indexNumber) {
+    throw new AppError('Missing required fields', 400);
+  }
 
-    if (existingVote) {
-      return res.status(400).json({ message: 'You have already voted in this election.' });
-    }
+  const { data: election, error: electionError } = await supabase
+    .from('elections')
+    .select('status')
+    .eq('id', electionId)
+    .single();
 
-    // B. Create a "Blockchain" Hash (Simulated Security)
-    const voteData = `${userId}-${electionId}-${candidateId}-${Date.now()}`;
-    const voteHash = crypto.createHash('sha256').update(voteData).digest('hex');
+  if (electionError || !election) {
+    throw new AppError('Election not found', 404);
+  }
 
-    // C. Insert Vote
-    const { data: vote, error: voteError } = await supabase
-      .from('votes')
-      .insert([{ 
-        user_id: userId, 
-        election_id: electionId, 
-        candidate_id: candidateId,
-        vote_hash: voteHash
-      }])
-      .select()
-      .single();
+  if (election.status !== 'Active') {
+    throw new AppError('Election is closed', 400);
+  }
 
-    if (voteError) throw voteError;
+  const { data: existingVote } = await supabase
+    .from('votes')
+    .select('id')
+    .eq('election_id', electionId)
+    .eq('user_id', userId)
+    .maybeSingle();
 
-    // D. Increment Candidate Vote Count
-    // (We fetch current count first, then update. In high-scale apps, use RPC)
-    const { data: candidate } = await supabase
-      .from('candidates')
-      .select('votes')
-      .eq('id', candidateId)
-      .single();
+  if (existingVote) {
+    throw new AppError('You have already voted in this election', 409);
+  }
 
+  const { error: voteError } = await supabase.from('votes').insert([{
+    user_id: userId,
+    election_id: electionId,
+    candidate_id: candidateId,
+    index_number: indexNumber,
+    timestamp: new Date().toISOString()
+  }]);
+
+  if (voteError) throw new AppError(voteError.message, 500);
+
+  const { data: candidate } = await supabase
+    .from('candidates')
+    .select('vote_count')
+    .eq('id', candidateId)
+    .single();
+
+  if (candidate) {
     await supabase
       .from('candidates')
-      .update({ votes: (candidate.votes || 0) + 1 })
+      .update({ vote_count: (candidate.vote_count || 0) + 1 })
       .eq('id', candidateId);
-
-    res.status(201).json({ message: 'Vote cast successfully', voteHash });
-
-  } catch (error) {
-    console.error("Voting Error:", error);
-    // Handle unique constraint violation just in case race condition occurs
-    if (error.code === '23505') { 
-      return res.status(400).json({ message: 'You have already voted.' });
-    }
-    res.status(500).json({ message: 'Voting failed', error: error.message });
   }
-};
 
-// --- 2. GET VOTER HISTORY ---
-const getHistory = async (req, res) => {
-  try {
-    const userId = req.user.id;
+  res.status(201).json({ message: 'Vote cast successfully' });
+});
 
-    // Fetch votes with joined Election and Candidate data
-    const { data, error } = await supabase
-      .from('votes')
-      .select(`
-        *,
-        elections (title, status, end_time),
-        candidates (name, party)
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+const getHistory = asyncHandler(async (req, res, next) => {
+  const { data: votes, error } = await supabase
+    .from('votes')
+    .select(`
+      id, 
+      date: timestamp, 
+      index_number,
+      election: elections ( id, title, status, end_time ),
+      candidate: candidates ( name )
+    `)
+    .eq('user_id', req.user.id)
+    .order('timestamp', { ascending: false });
 
-    if (error) throw error;
+  if (error) throw new AppError('Failed to retrieve history', 500);
 
-    // Transform data for Frontend UI
-    const formattedHistory = data.map(vote => ({
-      id: vote.id,
-      electionTitle: vote.elections?.title,
-      electionStatus: vote.elections?.status,
-      date: vote.created_at,
-      candidateName: vote.candidates?.name,
-      party: vote.candidates?.party,
-      voteHash: vote.vote_hash,
-      // Simple logic: If election ended, we could show winner (future feature)
-      result: vote.elections?.status === 'Ended' ? 'Completed' : 'Active' 
-    }));
+  const formatted = votes.map(v => ({
+    id: v.id,
+    electionId: v.election?.id,
+    electionTitle: v.election?.title,
+    status: v.election?.status,
+    myCandidate: v.candidate?.name,
+    date: v.date,
+    voteHash: v.id
+  }));
 
-    res.json(formattedHistory);
+  res.status(200).json(formatted);
+});
 
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch history' });
+const checkEligibility = asyncHandler(async (req, res, next) => {
+  const { data } = await supabase
+    .from('votes')
+    .select('id')
+    .eq('election_id', req.params.electionId)
+    .eq('user_id', req.user.id)
+    .maybeSingle();
+
+  if (data) {
+    return res.status(409).json({ canVote: false, message: "Already voted" });
   }
-};
 
-// --- 3. CHECK ELIGIBILITY (Helper) ---
-const checkEligibility = async (req, res) => {
-  const { electionId } = req.params;
-  const userId = req.user.id;
+  res.status(200).json({ canVote: true });
+});
 
-  try {
-    const { data } = await supabase
-      .from('votes')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('election_id', electionId)
-      .maybeSingle();
+const checkRegistration = asyncHandler(async (req, res, next) => {
+  const { indexNumber } = req.params;
 
-    res.json({ canVote: !data }); // If data exists, canVote = false
-  } catch (error) {
-    res.status(500).json({ message: 'Check failed' });
+  const { data: user } = await supabase
+    .from('users')
+    .select('id, full_name')
+    .eq('username', indexNumber)
+    .maybeSingle();
+
+  if (user) {
+    res.status(200).json({ eligible: true, message: `Verified: Registered as ${user.full_name}` });
+  } else {
+    res.status(200).json({ eligible: false, message: "Index Number not found" });
   }
-};
+});
 
-module.exports = { castVote, getHistory, checkEligibility };
+module.exports = { castVote, getHistory, checkEligibility, checkRegistration };

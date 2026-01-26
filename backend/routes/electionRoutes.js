@@ -1,32 +1,26 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
-const { 
-  getElections, 
-  createElection, 
-  getElectionById, 
-  deleteElection,
-  updateElection 
+const { protect, admin } = require('../middleware/authMiddleware');
+const {
+    getAllElections,
+    getActiveElections,
+    getElectionById,
+    createElection,
+    updateElection,
+    deleteElection,
+    getElectionStats,
+    getElectionResults
 } = require('../controllers/electionController');
 
-// Helper middleware to check for Admin role
-const adminOnly = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
-    next();
-  } else {
-    res.status(403).json({ message: 'Admin access required' });
-  }
-};
+router.get('/stats', protect, admin, getElectionStats);
+router.get('/active', protect, getActiveElections);
 
-// --- ROUTES ---
+router.get('/', protect, getAllElections);
+router.post('/', protect, admin, createElection);
 
-// Public/Voter: Read Elections
-router.get('/', protect, getElections); 
+router.get('/:id/results', protect, getElectionResults);
 router.get('/:id', protect, getElectionById);
-
-// Admin Only: Create, Update, Delete
-router.post('/', protect, adminOnly, createElection);
-router.put('/:id', protect, adminOnly, updateElection);
-router.delete('/:id', protect, adminOnly, deleteElection);
+router.put('/:id', protect, admin, updateElection);
+router.delete('/:id', protect, admin, deleteElection);
 
 module.exports = router;

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../components/Button";
@@ -12,6 +12,8 @@ import {
   FiArrowLeft,
   FiAlertCircle,
   FiShield,
+  FiClock,
+  FiCheck,
 } from "react-icons/fi";
 import { authAPI } from "../../services/api";
 
@@ -21,6 +23,9 @@ const Register = () => {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [globalError, setGlobalError] = useState("");
+
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [resendAttempts, setResendAttempts] = useState(0);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -33,7 +38,22 @@ const Register = () => {
 
   const [errors, setErrors] = useState({});
 
-  // --- VALIDATION ---
+  useEffect(() => {
+    let interval;
+    if (otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpTimer]);
+
+  const formatTimer = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
+
   const validateStep1 = () => {
     const newErrors = {};
     if (!formData.fullName.trim()) newErrors.fullName = "Full Name is required";
@@ -58,12 +78,23 @@ const Register = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // --- HANDLERS ---
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
     if (globalError) setGlobalError("");
+  };
+
+  const sendOtp = async () => {
+    try {
+      await authAPI.sendOTP({ email: formData.email, type: "register" });
+      return true;
+    } catch (error) {
+      setGlobalError(
+        error.response?.data?.message || "Failed to send OTP. Try again.",
+      );
+      return false;
+    }
   };
 
   const handleNext = async () => {
@@ -74,19 +105,40 @@ const Register = () => {
     } else if (step === 2 && validateStep2()) {
       setIsLoading(true);
       try {
-        // Send OTP via API
-        // await authAPI.sendOTP({ email: formData.email });
-
-        // Simulating network request for now if endpoint is missing in your backend
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        setStep(3);
+        const success = await sendOtp();
+        if (success) {
+          setStep(3);
+          setOtpTimer(30);
+        }
       } catch (error) {
         console.error("OTP Error:", error);
-        setGlobalError("Failed to send OTP. Please check your email.");
       } finally {
         setIsLoading(false);
       }
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (otpTimer > 0) return;
+
+    setIsLoading(true);
+    setGlobalError("");
+
+    try {
+      const success = await sendOtp();
+      if (success) {
+        const newAttempts = resendAttempts + 1;
+        setResendAttempts(newAttempts);
+
+        if (newAttempts >= 3) {
+          setOtpTimer(1200);
+          setGlobalError("Max attempts reached. Wait 20 minutes.");
+        } else {
+          setOtpTimer(30);
+        }
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -103,15 +155,15 @@ const Register = () => {
     try {
       await authAPI.register({
         fullName: formData.fullName,
-        username: formData.indexNo, // Using IndexNo as username
+        username: formData.indexNo,
         email: formData.email,
         password: formData.password,
         role: "voter",
         otp: formData.otp,
       });
 
-      // Redirect to Login on Success
-      navigate("/login");
+      // --- FIX: Explicit redirect to Voter Login ---
+      navigate("/login?role=voter");
     } catch (error) {
       console.error("Registration Error:", error);
       const msg =
@@ -125,14 +177,12 @@ const Register = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-900 relative overflow-hidden">
-      {/* Background Ambience */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-10 right-10 w-96 h-96 bg-indigo-500/20 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute bottom-10 left-10 w-72 h-72 bg-emerald-500/10 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
       </div>
 
       <div className="relative z-10 bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 p-6 md:p-8 rounded-2xl shadow-2xl max-w-lg w-full ring-1 ring-white/5 mt-4 md:mt-0">
-        {/* Step Indicator */}
         <div className="flex justify-between items-center mb-8 px-2 md:px-4">
           {[1, 2, 3].map((num) => (
             <div key={num} className="flex flex-col items-center z-10">
@@ -150,7 +200,6 @@ const Register = () => {
               </span>
             </div>
           ))}
-          {/* Connecting Line */}
           <div className="absolute top-[44px] md:top-[52px] left-10 right-10 md:left-16 md:right-16 h-[2px] bg-slate-800 -z-0">
             <div
               className="h-full bg-indigo-600 transition-all duration-500"
@@ -167,7 +216,6 @@ const Register = () => {
               : "Verify & Finish"}
         </h2>
 
-        {/* Global Error */}
         <AnimatePresence>
           {globalError && (
             <motion.div
@@ -182,7 +230,6 @@ const Register = () => {
         </AnimatePresence>
 
         <AnimatePresence mode="wait">
-          {/* --- STEP 1: Personal Details --- */}
           {step === 1 && (
             <motion.div
               key="step1"
@@ -233,7 +280,6 @@ const Register = () => {
             </motion.div>
           )}
 
-          {/* --- STEP 2: Password Setup --- */}
           {step === 2 && (
             <motion.div
               key="step2"
@@ -292,7 +338,6 @@ const Register = () => {
             </motion.div>
           )}
 
-          {/* --- STEP 3: OTP Verification --- */}
           {step === 3 && (
             <motion.div
               key="step3"
@@ -310,16 +355,26 @@ const Register = () => {
                 <span className="text-white font-mono">{formData.email}</span>
               </p>
 
-              <div className="max-w-[200px] mx-auto">
+              <div className="max-w-[200px] mx-auto relative">
                 <Input
                   name="otp"
                   placeholder="123456"
                   className="text-center text-2xl tracking-[0.5em] font-mono border-indigo-500/50 focus:border-indigo-500"
                   value={formData.otp}
-                  onChange={handleChange}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9]/g, "");
+                    setFormData((prev) => ({ ...prev, otp: val }));
+                    if (errors.otp)
+                      setErrors((prev) => ({ ...prev, otp: null }));
+                  }}
                   error={errors.otp}
                   maxLength={6}
                 />
+                {formData.otp.length === 6 && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500">
+                    <FiCheck className="w-6 h-6" />
+                  </div>
+                )}
               </div>
 
               <Button
@@ -331,12 +386,35 @@ const Register = () => {
                 Verify & Register
               </Button>
 
-              <button
-                onClick={() => setStep(1)}
-                className="text-xs text-slate-500 hover:text-white underline transition-colors"
-              >
-                Change Email / Re-send
-              </button>
+              <div className="text-xs flex flex-col gap-1 items-center">
+                {otpTimer > 0 ? (
+                  <span className="text-slate-500 flex items-center gap-1.5">
+                    <FiClock /> Resend available in{" "}
+                    <span className="text-indigo-400 font-mono font-bold">
+                      {formatTimer(otpTimer)}
+                    </span>
+                  </span>
+                ) : (
+                  <button
+                    onClick={handleResendOtp}
+                    disabled={isLoading}
+                    className="text-slate-400 hover:text-white underline transition-colors"
+                  >
+                    Resend OTP Code
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setStep(1);
+                    setOtpTimer(0);
+                    setResendAttempts(0);
+                  }}
+                  className="text-slate-600 hover:text-indigo-400 transition-colors mt-2"
+                >
+                  Change Email / Restart
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -345,7 +423,7 @@ const Register = () => {
       <p className="mt-8 text-slate-500 text-xs text-center">
         Already have an account?{" "}
         <Link
-          to="/login"
+          to="/login?role=voter"
           className="text-indigo-400 hover:text-white transition-colors hover:underline"
         >
           Login here

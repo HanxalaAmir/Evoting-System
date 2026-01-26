@@ -1,48 +1,41 @@
 const jwt = require('jsonwebtoken');
 const supabase = require('../config/supabaseClient');
+const asyncHandler = require('./asyncHandler');
+const AppError = require('../utils/AppError');
 
-const protect = async (req, res, next) => {
-  let token;
+const protect = asyncHandler(async (req, res, next) => {
+  let token = req.cookies.jwt;
 
-  // 1. Read Token
-  token = req.cookies.jwt;
+  if (!token) {
+    throw new AppError('Not authorized, no token', 401);
+  }
 
-  if (token) {
-    try {
-      // 2. Verify Token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      
-      console.log("🔍 Middleware Debug:");
-      console.log("   - Token Decoded User ID:", decoded.userId);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // 3. Fetch User
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('id, full_name, username, email, role, two_factor_enabled')
-        .eq('id', decoded.userId)
-        .single();
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, full_name, username, email, role, two_factor_enabled')
+      .eq('id', decoded.userId)
+      .single();
 
-      // LOG THE DATABASE RESPONSE
-      if (error) console.error("   - DB Error:", error.message);
-      if (user) console.log("   - DB User Found:", user.email);
-      else console.log("   - DB User: NULL (Not Found)");
-
-      if (error || !user) {
-        throw new Error('User not found in database');
-      }
-
-      // 4. Attach & Next
-      req.user = user;
-      next();
-
-    } catch (error) {
-      console.error("❌ Auth Middleware Failed:", error.message);
-      res.status(401).json({ message: 'Not authorized, token failed' });
+    if (error || !user) {
+      throw new AppError('Not authorized, user not found', 401);
     }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    throw new AppError('Not authorized, token failed', 401);
+  }
+});
+
+const admin = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next();
   } else {
-    console.log("❌ Auth Middleware: No Token Found in Cookies");
-    res.status(401).json({ message: 'Not authorized, no token' });
+    next(new AppError('Not authorized as an admin', 403));
   }
 };
 
-module.exports = { protect };
+module.exports = { protect, admin };

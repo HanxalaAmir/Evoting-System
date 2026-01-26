@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../components/Button";
@@ -11,6 +11,9 @@ import {
   FiAlertTriangle,
   FiArrowLeft,
   FiAlertCircle,
+  FiClock,
+  FiCheck,
+  FiRefreshCw,
 } from "react-icons/fi";
 import { authAPI } from "../../services/api";
 
@@ -18,6 +21,9 @@ const AdminRegister = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [resendAttempts, setResendAttempts] = useState(0);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -30,7 +36,22 @@ const AdminRegister = () => {
 
   const [errors, setErrors] = useState({});
 
-  // --- VALIDATION ---
+  useEffect(() => {
+    let interval;
+    if (otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpTimer]);
+
+  const formatTimer = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
+
   const validateStep1 = () => {
     const newErrors = {};
     if (!formData.fullName.trim()) newErrors.fullName = "Full Name is required";
@@ -46,7 +67,7 @@ const AdminRegister = () => {
 
   const validateStep2 = () => {
     if (formData.otp.length !== 6) {
-      setErrors({ otp: "Please enter the 6-digit OTP sent to your email." });
+      setErrors({ otp: "Please enter the 6-digit OTP code." });
       return false;
     }
     return true;
@@ -60,21 +81,78 @@ const AdminRegister = () => {
     return true;
   };
 
-  // --- HANDLERS ---
+  const sendOtp = async () => {
+    try {
+      await authAPI.sendOTP({ email: formData.email, type: "register" });
+      return true;
+    } catch (error) {
+      setErrors({
+        form: error.response?.data?.message || "Failed to send OTP.",
+      });
+      return false;
+    }
+  };
+
   const handleNext = async () => {
     if (step === 1 && validateStep1()) {
       setIsLoading(true);
+      setErrors({});
+
       try {
-        // TODO: Replace with real API call: await authAPI.sendOTP(formData.email);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        setStep(2);
+        const success = await sendOtp();
+        if (success) {
+          setStep(2);
+          setOtpTimer(30);
+        }
       } catch (error) {
-        setErrors({ form: "Failed to send OTP. Please try again." });
+        setErrors({ form: "Failed to connect to server." });
       } finally {
         setIsLoading(false);
       }
     } else if (step === 2 && validateStep2()) {
-      setStep(3);
+      setIsLoading(true);
+      setErrors({});
+
+      try {
+        await authAPI.verifyOTP({
+          email: formData.email,
+          otp: formData.otp,
+          type: "register",
+        });
+        setStep(3);
+      } catch (error) {
+        setErrors({
+          otp:
+            error.response?.data?.message ||
+            "Invalid OTP code. Please check and try again.",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (otpTimer > 0) return;
+
+    setIsLoading(true);
+    setErrors({});
+
+    try {
+      const success = await sendOtp();
+      if (success) {
+        const newAttempts = resendAttempts + 1;
+        setResendAttempts(newAttempts);
+
+        if (newAttempts >= 3) {
+          setOtpTimer(1200);
+          setErrors({ form: "Max attempts reached. Please wait 20 minutes." });
+        } else {
+          setOtpTimer(30);
+        }
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -91,19 +169,18 @@ const AdminRegister = () => {
         username: formData.username,
         email: formData.email,
         password: formData.password,
+        otp: formData.otp,
         role: "admin",
         secretCode: formData.secretCode,
       });
 
-      // Redirect on success
-      navigate("/admin/dashboard");
+      // --- FIX: Redirect to Admin Login Page ---
+      navigate("/login?role=admin");
     } catch (error) {
-      console.error("Registration Failed:", error);
       setErrors({
         form:
-          typeof error === "string"
-            ? error
-            : "Registration failed. Please check your credentials.",
+          error.response?.data?.message ||
+          "Registration failed. Please check your credentials.",
       });
     } finally {
       setIsLoading(false);
@@ -112,14 +189,12 @@ const AdminRegister = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-900 relative overflow-hidden">
-      {/* Background Ambience */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-rose-600/20 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-orange-600/10 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
       </div>
 
       <div className="relative z-10 bg-slate-900/60 backdrop-blur-xl border border-rose-500/30 p-8 rounded-2xl shadow-2xl shadow-rose-900/20 max-w-md w-full ring-1 ring-white/5">
-        {/* Back Button */}
         <Link
           to="/login?role=admin"
           className="absolute top-6 left-6 text-slate-400 hover:text-white transition-colors"
@@ -127,7 +202,6 @@ const AdminRegister = () => {
           <FiArrowLeft className="w-5 h-5" />
         </Link>
 
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-gradient-to-tr from-rose-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-rose-500/20">
             <FiShield className="text-white w-8 h-8" />
@@ -135,10 +209,16 @@ const AdminRegister = () => {
           <h2 className="text-2xl font-bold text-white tracking-tight">
             Admin Registration
           </h2>
-          <p className="text-slate-400 text-sm mt-2">Restricted Access Only</p>
+          <p className="text-slate-400 text-sm mt-2">
+            Step {step} of 3:{" "}
+            {step === 1
+              ? "Account Details"
+              : step === 2
+                ? "Verification"
+                : "Authorization"}
+          </p>
         </div>
 
-        {/* Global Error */}
         {errors.form && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -151,7 +231,6 @@ const AdminRegister = () => {
         )}
 
         <AnimatePresence mode="wait">
-          {/* --- STEP 1: ACCOUNT DETAILS --- */}
           {step === 1 && (
             <motion.div
               key="step1"
@@ -173,7 +252,7 @@ const AdminRegister = () => {
                 />
                 <Input
                   label="Username"
-                  placeholder="admin_john"
+                  placeholder="admin_E1"
                   value={formData.username}
                   onChange={(e) =>
                     setFormData({ ...formData, username: e.target.value })
@@ -207,15 +286,14 @@ const AdminRegister = () => {
               <Button
                 onClick={handleNext}
                 variant="primary"
-                className="w-full bg-rose-600 hover:bg-rose-500 shadow-rose-500/20 mt-4"
+                className="w-full bg-rose-600 hover:bg-rose-500 shadow-rose-500/20 mt-4 py-3"
                 isLoading={isLoading}
               >
-                Verify Email
+                Send Verification Code
               </Button>
             </motion.div>
           )}
 
-          {/* --- STEP 2: OTP VERIFICATION --- */}
           {step === 2 && (
             <motion.div
               key="step2"
@@ -225,41 +303,81 @@ const AdminRegister = () => {
               transition={{ duration: 0.2 }}
               className="space-y-6 text-center"
             >
-              <p className="text-slate-300 text-sm">
-                Enter the OTP sent to{" "}
-                <span className="text-rose-400 font-mono">
-                  {formData.email}
-                </span>
-              </p>
-              <div className="max-w-[200px] mx-auto">
-                <Input
-                  placeholder="123456"
-                  className="text-center text-2xl tracking-[0.5em] font-mono border-rose-500/50 focus:border-rose-500"
-                  value={formData.otp}
-                  onChange={(e) =>
-                    setFormData({ ...formData, otp: e.target.value })
-                  }
-                  error={errors.otp}
-                  maxLength={6}
-                />
+              <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+                <p className="text-slate-300 text-sm mb-4">
+                  We sent a 6-digit code to{" "}
+                  <span className="text-rose-400 font-mono font-bold">
+                    {formData.email}
+                  </span>
+                </p>
+                <div className="relative max-w-[240px] mx-auto">
+                  <input
+                    type="text"
+                    maxLength="6"
+                    placeholder="------"
+                    className={`w-full bg-slate-900 border ${
+                      errors.otp ? "border-red-500" : "border-rose-500/30"
+                    } rounded-xl py-4 text-center text-3xl font-mono tracking-[0.5em] text-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all placeholder:text-slate-700`}
+                    value={formData.otp}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        otp: e.target.value.replace(/[^0-9]/g, ""),
+                      })
+                    }
+                  />
+                  {formData.otp.length === 6 && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500">
+                      <FiCheck className="w-6 h-6" />
+                    </div>
+                  )}
+                </div>
+                {errors.otp && (
+                  <p className="text-red-400 text-xs mt-2">{errors.otp}</p>
+                )}
               </div>
+
               <Button
                 onClick={handleNext}
                 variant="primary"
-                className="w-full bg-rose-600 hover:bg-rose-500 shadow-rose-500/20"
+                className="w-full bg-rose-600 hover:bg-rose-500 shadow-rose-500/20 py-3"
+                isLoading={isLoading}
               >
-                Verify OTP
+                Verify & Continue
               </Button>
-              <button
-                onClick={() => setStep(1)}
-                className="text-xs text-slate-500 hover:text-white underline transition-colors"
-              >
-                Change Email
-              </button>
+
+              <div className="text-xs flex flex-col gap-2 items-center pt-2">
+                {otpTimer > 0 ? (
+                  <span className="text-slate-500 flex items-center gap-1.5 bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700">
+                    <FiClock className="animate-pulse" /> Resend available in{" "}
+                    <span className="text-rose-400 font-mono font-bold">
+                      {formatTimer(otpTimer)}
+                    </span>
+                  </span>
+                ) : (
+                  <button
+                    onClick={handleResendOtp}
+                    disabled={isLoading}
+                    className="text-slate-400 hover:text-white underline transition-colors flex items-center gap-1"
+                  >
+                    <FiRefreshCw className="w-3 h-3" /> Resend OTP Code
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setStep(1);
+                    setOtpTimer(0);
+                    setResendAttempts(0);
+                  }}
+                  className="text-slate-600 hover:text-rose-400 transition-colors text-[10px] uppercase tracking-wide font-bold mt-4"
+                >
+                  Change Email Address
+                </button>
+              </div>
             </motion.div>
           )}
 
-          {/* --- STEP 3: SECRET CODE --- */}
           {step === 3 && (
             <motion.div
               key="step3"
@@ -270,30 +388,43 @@ const AdminRegister = () => {
               className="space-y-6"
             >
               <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-4 flex items-start gap-3">
-                <FiAlertTriangle className="text-rose-500 mt-1 shrink-0" />
-                <p className="text-xs text-rose-200">
-                  This step requires a High-Level Authorization Code provided by
-                  the System Administrator.
+                <FiAlertTriangle className="text-rose-500 mt-1 shrink-0 w-5 h-5" />
+                <p className="text-xs text-rose-200 leading-relaxed">
+                  <strong>Security Check:</strong> This step requires a
+                  High-Level Authorization Code provided by the System
+                  Administrator to prevent unauthorized admin creation.
                 </p>
               </div>
 
-              <Input
-                label="Secret Administration Code"
-                type="password"
-                placeholder="ENTER-CODE-HERE"
-                icon={FiKey}
-                value={formData.secretCode}
-                onChange={(e) =>
-                  setFormData({ ...formData, secretCode: e.target.value })
-                }
-                error={errors.secretCode}
-                className="font-mono text-center"
-              />
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block ml-1">
+                  Secret Key
+                </label>
+                <div className="relative">
+                  <FiKey className="absolute left-4 top-3.5 text-slate-500" />
+                  <input
+                    type="password"
+                    placeholder="ENTER-ADMIN-KEY"
+                    className={`w-full bg-slate-950/50 border ${
+                      errors.secretCode ? "border-red-500" : "border-slate-700"
+                    } rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:border-rose-500 outline-none transition-colors font-mono text-center tracking-widest`}
+                    value={formData.secretCode}
+                    onChange={(e) =>
+                      setFormData({ ...formData, secretCode: e.target.value })
+                    }
+                  />
+                </div>
+                {errors.secretCode && (
+                  <p className="text-red-400 text-xs ml-1">
+                    {errors.secretCode}
+                  </p>
+                )}
+              </div>
 
               <Button
                 onClick={handleSubmit}
                 variant="primary"
-                className="w-full bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-500 hover:to-orange-500 shadow-lg shadow-rose-500/20"
+                className="w-full bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-500 hover:to-orange-500 shadow-lg shadow-rose-500/20 py-3"
                 isLoading={isLoading}
               >
                 Complete Registration
@@ -302,12 +433,12 @@ const AdminRegister = () => {
           )}
         </AnimatePresence>
 
-        <div className="mt-6 text-center border-t border-slate-700/50 pt-4">
+        <div className="mt-8 text-center border-t border-slate-700/50 pt-4">
           <p className="text-xs text-slate-500">
             Already have an admin account?{" "}
             <Link
               to="/login?role=admin"
-              className="text-rose-400 hover:text-rose-300 font-semibold transition-colors hover:underline"
+              className="text-rose-400 hover:text-rose-300 font-bold transition-colors hover:underline"
             >
               Login here
             </Link>

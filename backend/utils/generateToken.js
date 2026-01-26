@@ -1,17 +1,20 @@
 const jwt = require('jsonwebtoken');
 
 const generateToken = (res, userId, role) => {
-  const token = jwt.sign({ userId, role }, process.env.JWT_SECRET, {
-    expiresIn: '30d', // Session lasts 30 days
-  });
+  try {
+    const token = jwt.sign({ userId, role }, process.env.JWT_SECRET, {
+      expiresIn: '30d',
+    });
 
-  // Send Token in HTTP-Only Cookie (Secure)
-  res.cookie('jwt', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV !== 'development', // Use secure cookies in production
-    sameSite: 'strict', // Prevent CSRF attacks
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 Days
-  });
+    res.cookie('jwt', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+  } catch (error) {
+    throw new Error('Failed to generate authentication token');
+  }
 };
 
 module.exports = generateToken;
