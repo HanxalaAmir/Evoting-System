@@ -1,7 +1,5 @@
 const supabase = require('../config/supabaseClient');
 const bcrypt = require('bcryptjs');
-const speakeasy = require('speakeasy');
-const qrcode = require('qrcode');
 const generateToken = require('../utils/generateToken');
 const { sendEmailOTP } = require('../utils/emailService');
 const asyncHandler = require('../middleware/asyncHandler');
@@ -147,8 +145,7 @@ const loginUser = asyncHandler(async (req, res, next) => {
     fullName: user.full_name,
     username: user.username,
     email: user.email,
-    role: user.role,
-    twoFactorEnabled: user.two_factor_enabled
+    role: user.role
   });
 });
 
@@ -169,8 +166,7 @@ const getCurrentUser = asyncHandler(async (req, res, next) => {
       fullName: req.user.full_name,
       username: req.user.username,
       email: req.user.email,
-      role: req.user.role,
-      twoFactorEnabled: req.user.two_factor_enabled
+      role: req.user.role
     });
   } else {
     throw new AppError('User context not found.', 404);
@@ -183,7 +179,7 @@ const updateProfile = asyncHandler(async (req, res, next) => {
     .from('users')
     .update({ full_name: fullName })
     .eq('id', req.user.id)
-    .select('id, full_name, username, email, role, two_factor_enabled')
+    .select('id, full_name, username, email, role')
     .single();
 
   if (error) throw new AppError('Profile update failed.', 500);
@@ -214,60 +210,6 @@ const changePassword = asyncHandler(async (req, res, next) => {
   res.status(200).json({ message: 'Password updated successfully' });
 });
 
-const enable2FA = asyncHandler(async (req, res, next) => {
-  const secret = speakeasy.generateSecret({ name: `UniVoting (${req.user.username})` });
-
-  const { error } = await supabase
-    .from('users')
-    .update({ two_factor_secret: secret.base32 })
-    .eq('id', req.user.id);
-
-  if (error) throw new AppError('Failed to initialize 2FA.', 500);
-
-  qrcode.toDataURL(secret.otpauth_url, (err, data_url) => {
-    if (err) throw new AppError('QR Code generation failed.', 500);
-    res.status(200).json({ secret: secret.base32, qrCodeUrl: data_url });
-  });
-});
-
-const verify2FA = asyncHandler(async (req, res, next) => {
-  const { token } = req.body;
-
-  const { data: user } = await supabase
-    .from('users')
-    .select('two_factor_secret')
-    .eq('id', req.user.id)
-    .single();
-
-  const verified = speakeasy.totp.verify({
-    secret: user.two_factor_secret,
-    encoding: 'base32',
-    token: token
-  });
-
-  if (verified) {
-    await supabase
-      .from('users')
-      .update({ two_factor_enabled: true })
-      .eq('id', req.user.id);
-
-    res.status(200).json({ message: '2FA Enabled Successfully' });
-  } else {
-    throw new AppError('Invalid Authenticator Code.', 400);
-  }
-});
-
-const disable2FA = asyncHandler(async (req, res, next) => {
-  const { error } = await supabase
-    .from('users')
-    .update({ two_factor_enabled: false, two_factor_secret: null })
-    .eq('id', req.user.id);
-
-  if (error) throw new AppError('Failed to disable 2FA.', 500);
-
-  res.status(200).json({ message: '2FA Disabled' });
-});
-
 module.exports = {
   registerUser,
   loginUser,
@@ -276,8 +218,5 @@ module.exports = {
   sendOTP,
   verifyOTP,
   updateProfile,
-  changePassword,
-  enable2FA,
-  verify2FA,
-  disable2FA
+  changePassword
 };

@@ -1,32 +1,55 @@
-// Formats dates to "Jan 1, 2024"
 export const formatDate = (dateString) => {
-  if (!dateString) return 'N/A';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
+  try {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
 
-// Formats time to "09:00 AM"
-export const formatTime = (timeString) => {
-  if (!timeString) return '';
-  // Check if it's already a time string like "09:00" or a full ISO date
-  if (timeString.includes('T')) {
-    return new Date(timeString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (isNaN(date.getTime())) return 'Invalid Date';
+
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(date);
+  } catch (error) {
+    return 'N/A';
   }
-  return timeString;
 };
 
-// Calculates percentage safely (Prevents NaN/Infinity)
+export const formatTime = (timeString) => {
+  try {
+    if (!timeString) return '';
+
+    if (timeString.includes('T') || timeString.includes('-')) {
+      const date = new Date(timeString);
+      if (isNaN(date.getTime())) return '';
+
+      return new Intl.DateTimeFormat('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date);
+    }
+
+    return timeString;
+  } catch (error) {
+    return timeString;
+  }
+};
+
 export const calculatePercentage = (value, total) => {
-  if (!total || total === 0) return 0;
-  return ((value / total) * 100).toFixed(1);
+  try {
+    if (!total || total === 0 || isNaN(value) || isNaN(total)) return '0.0';
+    return ((value / total) * 100).toFixed(1);
+  } catch (error) {
+    return '0.0';
+  }
 };
 
-// Truncates long text (e.g., descriptions)
 export const truncateText = (text, maxLength = 100) => {
-  if (!text) return '';
-  if (text.length <= maxLength) return text;
-  return text.substr(0, maxLength) + '...';
+  try {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+  } catch (error) {
+    return '';
+  }
 };
