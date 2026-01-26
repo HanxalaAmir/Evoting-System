@@ -11,7 +11,8 @@ export const AuthProvider = ({ children }) => {
     const initAuth = async () => {
       try {
         const response = await authAPI.getCurrentUser();
-        setUser(response.data);
+        const userData = response.data?.user || response.data;
+        setUser(userData);
       } catch (error) {
         setUser(null);
       } finally {
@@ -23,14 +24,21 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (credentials) => {
-    const response = await authAPI.login(credentials);
-    setUser(response.data);
-    return response.data;
+    try {
+      const response = await authAPI.login(credentials);
+      const userData = response.data?.user || response.data;
+      setUser(userData);
+      return userData;
+    } catch (error) {
+      throw error;
+    }
   };
 
   const logout = async () => {
     try {
       await authAPI.logout();
+    } catch (error) {
+      // Ignore logout errors
     } finally {
       setUser(null);
     }
