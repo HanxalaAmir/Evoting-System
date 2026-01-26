@@ -11,12 +11,8 @@ const API = axios.create({
 API.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Standardize the error message
     error.customMessage = error.response?.data?.message || "An unexpected error occurred.";
-
-    if (error.response?.status === 401 && error.config.url.includes('/auth/me')) {
-      return Promise.resolve({ data: null });
-    }
-
     return Promise.reject(error);
   }
 );

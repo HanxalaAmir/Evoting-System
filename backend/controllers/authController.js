@@ -1,5 +1,6 @@
 const supabase = require('../config/supabaseClient');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken'); // Added this
 const generateToken = require('../utils/generateToken');
 const { sendEmailOTP } = require('../utils/emailService');
 const asyncHandler = require('../middleware/asyncHandler');
@@ -159,17 +160,31 @@ const logoutUser = asyncHandler(async (req, res, next) => {
   res.status(200).json({ message: 'Logged out successfully' });
 });
 
+// UPDATED: Now returns null (200 OK) instead of 401 Error if no user
 const getCurrentUser = asyncHandler(async (req, res, next) => {
-  if (req.user) {
-    res.status(200).json({
-      id: req.user.id,
-      fullName: req.user.full_name,
-      username: req.user.username,
-      email: req.user.email,
-      role: req.user.role
-    });
-  } else {
-    throw new AppError('User context not found.', 404);
+  const token = req.cookies.jwt;
+
+  if (!token) {
+    return res.status(200).json(null);
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('id, full_name, username, email, role')
+      .eq('id', decoded.userId)
+      .maybeSingle();
+
+    if (!user) {
+      return res.status(200).json(null);
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    // If token is invalid or expired, just return null (No Error)
+    return res.status(200).json(null);
   }
 });
 

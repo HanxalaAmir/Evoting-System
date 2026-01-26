@@ -18,7 +18,7 @@ router.post('/logout', logoutUser);
 router.post('/send-otp', sendOTP);
 router.post('/verify-otp', verifyOTP);
 
-router.get('/me', protect, getCurrentUser);
+router.get('/me', getCurrentUser);
 router.put('/profile', protect, updateProfile);
 router.put('/password', protect, changePassword);
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import { useAuth } from "../../context/AuthContext";
+import { verifyDeviceOwnership } from "../../utils/deviceAuth";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FiCheck,
@@ -13,43 +14,13 @@ import {
   FiLoader,
   FiAlertCircle,
   FiRefreshCw,
-  FiLock,
   FiHash,
   FiBox,
 } from "react-icons/fi";
 import { electionAPI, voteAPI } from "../../services/api";
 import confetti from "canvas-confetti";
 
-const verifyDeviceOwnership = async () => {
-  if (!window.PublicKeyCredential) {
-    return true;
-  }
-
-  try {
-    const isAvailable =
-      await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-
-    if (!isAvailable) {
-      return true;
-    }
-
-    const challenge = new Uint8Array(32);
-    window.crypto.getRandomValues(challenge);
-
-    const assertion = await navigator.credentials.get({
-      publicKey: {
-        challenge,
-        rpId: window.location.hostname,
-        timeout: 60000,
-        userVerification: "required",
-      },
-    });
-
-    return !!assertion;
-  } catch (error) {
-    return false;
-  }
-};
+// 2. DELETED LOCAL FUNCTION definition here
 
 const VoteScreen = () => {
   const navigate = useNavigate();
@@ -84,21 +55,17 @@ const VoteScreen = () => {
           );
         }
       } catch (historyErr) {
-        console.warn(
-          "History fetch skipped (likely empty or server issue). Proceeding.",
-        );
+        // Silently continue
       }
 
-      // Filter: Show ONLY active elections that user has NOT voted in
       const availableElections = activeData.filter((e) => {
         const isVoted = votedIds.has(e.id || e._id);
-        const isActive = e.status === "Active"; // Explicit check for status
+        const isActive = e.status === "Active";
         return isActive && !isVoted;
       });
 
       setElections(availableElections);
     } catch (err) {
-      console.error("Fetch Error:", err);
       setError("Unable to load active ballots. Please check your connection.");
     } finally {
       setIsLoading(false);
@@ -138,6 +105,7 @@ const VoteScreen = () => {
     setAuthStatus("verifying");
 
     try {
+      // 3. CALLS THE IMPORTED UTILITY
       const isVerified = await verifyDeviceOwnership();
 
       if (isVerified) {
@@ -171,7 +139,6 @@ const VoteScreen = () => {
         throw new Error("Device authentication failed or cancelled.");
       }
     } catch (err) {
-      console.error("Voting Failed:", err);
       setAuthStatus("failed");
       setIsSubmitting(false);
 
