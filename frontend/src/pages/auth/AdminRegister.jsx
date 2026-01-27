@@ -174,7 +174,7 @@ const AdminRegister = () => {
         secretCode: formData.secretCode,
       });
 
-      // --- FIX: Redirect to Admin Login Page ---
+      // Redirect to Admin Login Page
       navigate("/login?role=admin");
     } catch (error) {
       setErrors({

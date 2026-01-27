@@ -1,6 +1,6 @@
 const supabase = require('../config/supabaseClient');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken'); // Added this
+const jwt = require('jsonwebtoken');
 const generateToken = require('../utils/generateToken');
 const { sendEmailOTP } = require('../utils/emailService');
 const asyncHandler = require('../middleware/asyncHandler');
@@ -111,14 +111,16 @@ const registerUser = asyncHandler(async (req, res, next) => {
 
   await supabase.from('otp_codes').delete().eq('email', email);
 
-  generateToken(res, user.id, user.role);
+  // UPDATED: Capture the token to send it in the JSON response
+  const token = generateToken(res, user.id, user.role);
 
   res.status(201).json({
     id: user.id,
     fullName: user.full_name,
     username: user.username,
     email: user.email,
-    role: user.role
+    role: user.role,
+    token: token // Sent to Frontend for LocalStorage
   });
 });
 
@@ -139,14 +141,16 @@ const loginUser = asyncHandler(async (req, res, next) => {
     throw new AppError(`Access Denied. This account is not authorized for ${role} access.`, 403);
   }
 
-  generateToken(res, user.id, user.role);
+  // UPDATED: Capture the token to send it in the JSON response
+  const token = generateToken(res, user.id, user.role);
 
   res.status(200).json({
     id: user.id,
     fullName: user.full_name,
     username: user.username,
     email: user.email,
-    role: user.role
+    role: user.role,
+    token: token // Sent to Frontend for LocalStorage
   });
 });
 
@@ -160,9 +164,13 @@ const logoutUser = asyncHandler(async (req, res, next) => {
   res.status(200).json({ message: 'Logged out successfully' });
 });
 
-// UPDATED: Now returns null (200 OK) instead of 401 Error if no user
 const getCurrentUser = asyncHandler(async (req, res, next) => {
-  const token = req.cookies.jwt;
+  let token = req.cookies.jwt;
+
+  // UPDATED: Check Header if Cookie fails (The "Bearer Token" Fix)
+  if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
 
   if (!token) {
     return res.status(200).json(null);
@@ -183,7 +191,7 @@ const getCurrentUser = asyncHandler(async (req, res, next) => {
 
     res.status(200).json(user);
   } catch (error) {
-    // If token is invalid or expired, just return null (No Error)
+    // Return null if token is invalid
     return res.status(200).json(null);
   }
 });

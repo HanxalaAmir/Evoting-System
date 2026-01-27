@@ -8,10 +8,17 @@ const API = axios.create({
   },
 });
 
+API.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Standardize the error message
     error.customMessage = error.response?.data?.message || "An unexpected error occurred.";
     return Promise.reject(error);
   }

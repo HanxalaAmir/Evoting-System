@@ -111,7 +111,7 @@ const Register = () => {
           setOtpTimer(30);
         }
       } catch (error) {
-        console.error("OTP Error:", error);
+        setGlobalError("Failed to initiate verification.");
       } finally {
         setIsLoading(false);
       }
@@ -162,7 +162,6 @@ const Register = () => {
         otp: formData.otp,
       });
 
-      // --- FIX: Explicit redirect to Voter Login ---
       navigate("/login?role=voter");
     } catch (error) {
       console.error("Registration Error:", error);

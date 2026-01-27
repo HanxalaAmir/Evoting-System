@@ -16,7 +16,7 @@ import {
 const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login } = useAuth();
+  const { login } = useAuth(); // Assuming this context function calls authAPI.login
 
   const role = searchParams.get("role") === "admin" ? "admin" : "voter";
   const isAdmin = role === "admin";
@@ -71,13 +71,18 @@ const Login = () => {
     setGlobalError("");
 
     try {
+      // The context's login function handles the API call
+      // Ensure your AuthContext saves the 'token' from response to localStorage!
       const res = await login({
         identifier: formData.identifier,
         password: formData.password,
         role: role,
       });
 
-      if (res.role === "admin") navigate("/admin/dashboard");
+      // If the context doesn't handle saving token, check the response here:
+      // if (res.token) localStorage.setItem('authToken', res.token);
+
+      if (res && res.role === "admin") navigate("/admin/dashboard");
       else navigate("/voter/dashboard");
     } catch (error) {
       console.error("Login Failed:", error);

@@ -1,22 +1,19 @@
 const jwt = require('jsonwebtoken');
 
 const generateToken = (res, userId, role) => {
-  try {
-    const token = jwt.sign({ userId, role }, process.env.JWT_SECRET, {
-      expiresIn: '30d',
-    });
+  const token = jwt.sign({ userId, role }, process.env.JWT_SECRET, {
+    expiresIn: '30m',
+  });
 
-    res.cookie('jwt', token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-      path: '/'
-    });
-  } catch (error) {
-    console.error("Token Error:", error);
-    throw new Error('Failed to generate authentication token');
-  }
+  res.cookie('jwt', token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    maxAge: 30 * 60 * 1000,
+    path: '/'
+  });
+
+  return token;
 };
 
 module.exports = generateToken;
