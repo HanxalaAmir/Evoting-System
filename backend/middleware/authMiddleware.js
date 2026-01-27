@@ -7,18 +7,33 @@ const protect = asyncHandler(async (req, res, next) => {
   const token = req.cookies?.jwt;
 
   if (!token) {
+    console.log("No token found in cookies");
     throw new AppError("Not authorized, no token", 401);
   }
 
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("Decoded JWT:", decoded);
+  } catch (error) {
+    console.log("JWT verification failed:", error.message);
+    throw new AppError("Not authorized, token failed", 401);
+  }
 
-  const { data: user } = await supabase
+  const userId = decoded.userId || decoded.id;
+  console.log("Fetching user with id:", userId);
+
+  const { data: user, error } = await supabase
     .from("users")
     .select("id, full_name, username, email, role, two_factor_enabled")
-    .eq("id", decoded.userId)
+    .eq("id", userId)
     .single();
 
+  if (error) {
+    console.log("Error fetching user:", error);
+  }
   if (!user) {
+    console.log("User not found");
     throw new AppError("Not authorized, user not found", 401);
   }
 
