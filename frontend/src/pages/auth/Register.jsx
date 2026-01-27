@@ -14,8 +14,15 @@ import {
   FiShield,
   FiClock,
   FiCheck,
+  FiRefreshCw,
 } from "react-icons/fi";
 import { authAPI } from "../../services/api";
+import {
+  formatDate,
+  formatTime,
+  calculatePercentage,
+  truncateText,
+} from "../../utils/helpers";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -28,8 +35,8 @@ const Register = () => {
   const [resendAttempts, setResendAttempts] = useState(0);
 
   const [formData, setFormData] = useState({
-    fullName: "",
-    indexNo: "",
+    full_name: "",
+    username: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -56,9 +63,10 @@ const Register = () => {
 
   const validateStep1 = () => {
     const newErrors = {};
-    if (!formData.fullName.trim()) newErrors.fullName = "Full Name is required";
-    if (!formData.indexNo.trim())
-      newErrors.indexNo = "Index Number is required";
+    if (!formData.full_name.trim())
+      newErrors.full_name = "Full Name is required";
+    if (!formData.username.trim())
+      newErrors.username = "Index Number is required";
     if (!formData.email.trim()) newErrors.email = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(formData.email))
       newErrors.email = "Invalid email format";
@@ -154,8 +162,8 @@ const Register = () => {
 
     try {
       await authAPI.register({
-        fullName: formData.fullName,
-        username: formData.indexNo,
+        full_name: formData.full_name,
+        username: formData.username,
         email: formData.email,
         password: formData.password,
         role: "voter",
@@ -164,7 +172,6 @@ const Register = () => {
 
       navigate("/login?role=voter");
     } catch (error) {
-      console.error("Registration Error:", error);
       const msg =
         error.response?.data?.message ||
         "Registration failed. Please try again.";
@@ -240,20 +247,20 @@ const Register = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
                   label="Full Name"
-                  name="fullName"
+                  name="full_name"
                   placeholder="John Doe"
                   icon={FiUser}
-                  value={formData.fullName}
+                  value={formData.full_name}
                   onChange={handleChange}
-                  error={errors.fullName}
+                  error={errors.full_name}
                 />
                 <Input
                   label="Index No"
-                  name="indexNo"
+                  name="username"
                   placeholder="V-2024-XXXX"
-                  value={formData.indexNo}
+                  value={formData.username}
                   onChange={handleChange}
-                  error={errors.indexNo}
+                  error={errors.username}
                 />
               </div>
               <Input
@@ -309,12 +316,10 @@ const Register = () => {
                 />
               </div>
 
-              <div className="bg-indigo-500/10 p-4 rounded-xl border border-indigo-500/20 text-center">
+              <div className="bg-indigo-500/10 p-4 rounded-xl border border-indigo-500/20 text-center text-xs text-indigo-200">
                 <FiShield className="mx-auto text-indigo-400 w-6 h-6 mb-2" />
-                <p className="text-xs text-indigo-200">
-                  Your password will be encrypted using standard protocols.
-                  Ensure it is at least 6 characters long.
-                </p>
+                Passwords must be at least 6 characters and will be securely
+                encrypted.
               </div>
 
               <div className="pt-2 flex justify-between">
@@ -350,7 +355,7 @@ const Register = () => {
               </div>
 
               <p className="text-slate-400 text-sm">
-                We've sent a 6-digit code to{" "}
+                Enter the 6-digit code sent to{" "}
                 <span className="text-white font-mono">{formData.email}</span>
               </p>
 
@@ -397,9 +402,9 @@ const Register = () => {
                   <button
                     onClick={handleResendOtp}
                     disabled={isLoading}
-                    className="text-slate-400 hover:text-white underline transition-colors"
+                    className="text-slate-400 hover:text-white underline flex items-center gap-1"
                   >
-                    Resend OTP Code
+                    <FiRefreshCw className="w-3 h-3" /> Resend OTP Code
                   </button>
                 )}
 
@@ -409,9 +414,9 @@ const Register = () => {
                     setOtpTimer(0);
                     setResendAttempts(0);
                   }}
-                  className="text-slate-600 hover:text-indigo-400 transition-colors mt-2"
+                  className="text-slate-600 hover:text-indigo-400 mt-2 uppercase text-[10px] font-bold"
                 >
-                  Change Email / Restart
+                  Restart Registration
                 </button>
               </div>
             </motion.div>
@@ -423,7 +428,7 @@ const Register = () => {
         Already have an account?{" "}
         <Link
           to="/login?role=voter"
-          className="text-indigo-400 hover:text-white transition-colors hover:underline"
+          className="text-indigo-400 hover:text-white font-bold hover:underline"
         >
           Login here
         </Link>

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import { useAuth } from "../../context/AuthContext";
-// Import the utility we created earlier
 import { verifyDeviceOwnership } from "../../utils/deviceAuth";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -17,7 +16,6 @@ import {
   FiRefreshCw,
   FiHash,
   FiBox,
-  FiCopy,
 } from "react-icons/fi";
 import { electionAPI, voteAPI } from "../../services/api";
 import confetti from "canvas-confetti";
@@ -30,9 +28,6 @@ const VoteScreen = () => {
   const [activeElection, setActiveElection] = useState(null);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [indexNumberInput, setIndexNumberInput] = useState("");
-
-  // New state to store the Hash returned from backend
-  const [voteReceipt, setVoteReceipt] = useState(null);
 
   const [elections, setElections] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,16 +48,14 @@ const VoteScreen = () => {
       try {
         const { data: historyData } = await voteAPI.getHistory();
         if (Array.isArray(historyData)) {
-          votedIds = new Set(
-            historyData.map((h) => h.electionId || h.election_id),
-          );
+          votedIds = new Set(historyData.map((h) => h.electionId));
         }
       } catch (historyErr) {
-        // Silently continue
+        // Fail silently
       }
 
       const availableElections = activeData.filter((e) => {
-        const isVoted = votedIds.has(e.id || e._id);
+        const isVoted = votedIds.has(e.id);
         const isActive = e.status === "Active";
         return isActive && !isVoted;
       });
@@ -108,25 +101,18 @@ const VoteScreen = () => {
     setAuthStatus("verifying");
 
     try {
-      // Use the utility function
       const isVerified = await verifyDeviceOwnership();
 
       if (isVerified) {
         setAuthStatus("success");
 
         const payload = {
-          electionId: activeElection.id || activeElection._id,
+          electionId: activeElection.id,
           candidateId: selectedCandidate,
           indexNumber: indexNumberInput,
         };
 
-        // Capture the response (which now includes voteHash)
-        const response = await voteAPI.castVote(payload);
-
-        setVoteReceipt({
-          hash: response.data.voteHash,
-          title: response.data.electionTitle || activeElection.title,
-        });
+        await voteAPI.castVote(payload);
 
         confetti({
           particleCount: 150,
@@ -161,11 +147,8 @@ const VoteScreen = () => {
     setActiveElection(null);
     setSelectedCandidate(null);
     setAuthStatus("idle");
-    setVoteReceipt(null);
     fetchActiveElections();
   };
-
-  // --- RENDERING ---
 
   if (isLoading && view === "list") {
     return (
@@ -214,25 +197,11 @@ const VoteScreen = () => {
           <h2 className="text-3xl font-bold text-white mb-2 tracking-tight">
             Vote Recorded
           </h2>
-          <p className="text-slate-400 mb-6 max-w-sm text-sm leading-relaxed">
+          <p className="text-slate-400 mb-8 max-w-sm text-sm leading-relaxed">
             Your ballot for{" "}
-            <strong className="text-white">{voteReceipt?.title}</strong> has
-            been securely encrypted.
+            <strong className="text-white">{activeElection?.title}</strong> has
+            been securely encrypted and written to the ledger.
           </p>
-
-          {/* NEW: Display the Verification Hash */}
-          <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl mb-8 max-w-md w-full relative group">
-            <p className="text-[10px] text-slate-500 uppercase font-bold mb-1 flex items-center gap-1">
-              <FiHash /> Cryptographic Receipt
-            </p>
-            <code className="text-xs text-indigo-400 font-mono break-all block">
-              {voteReceipt?.hash}
-            </code>
-            <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <FiCopy className="text-slate-500" />
-            </div>
-          </div>
-
           <div className="flex gap-4">
             <button
               onClick={() => navigate("/voter/dashboard")}
@@ -252,13 +221,9 @@ const VoteScreen = () => {
     );
   }
 
-  // ... (Ballot View remains the same as previous version) ...
   if (view === "ballot" && activeElection) {
-    // Paste the exact same "ballot" view code from my previous response here
-    // (I am omitting it to keep this response short, but ensure you keep the full ballot UI)
     return (
       <DashboardLayout>
-        {/* ... Include the Ballot UI Code here ... */}
         <motion.div
           initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
@@ -289,13 +254,11 @@ const VoteScreen = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {activeElection.candidates.map((candidate) => (
               <div
-                key={candidate._id || candidate.id}
-                onClick={() =>
-                  setSelectedCandidate(candidate._id || candidate.id)
-                }
-                className={`relative flex items-center gap-5 p-6 rounded-2xl border cursor-pointer transition-all duration-300 group overflow-hidden ${selectedCandidate === (candidate._id || candidate.id) ? "bg-slate-800/80 border-indigo-500/50 ring-1 ring-indigo-500/20 shadow-2xl shadow-indigo-900/20" : "bg-slate-800/40 border-slate-700/50 hover:bg-slate-800 hover:border-slate-600"}`}
+                key={candidate.id}
+                onClick={() => setSelectedCandidate(candidate.id)}
+                className={`relative flex items-center gap-5 p-6 rounded-2xl border cursor-pointer transition-all duration-300 group overflow-hidden ${selectedCandidate === candidate.id ? "bg-slate-800/80 border-indigo-500/50 ring-1 ring-indigo-500/20 shadow-2xl shadow-indigo-900/20" : "bg-slate-800/40 border-slate-700/50 hover:bg-slate-800 hover:border-slate-600"}`}
               >
-                {selectedCandidate === (candidate._id || candidate.id) && (
+                {selectedCandidate === candidate.id && (
                   <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>
                 )}
                 <div
@@ -306,11 +269,11 @@ const VoteScreen = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-1">
                     <h3
-                      className={`text-base font-bold truncate transition-colors ${selectedCandidate === (candidate._id || candidate.id) ? "text-white" : "text-slate-200"}`}
+                      className={`text-base font-bold truncate transition-colors ${selectedCandidate === candidate.id ? "text-white" : "text-slate-200"}`}
                     >
                       {candidate.name}
                     </h3>
-                    {selectedCandidate === (candidate._id || candidate.id) && (
+                    {selectedCandidate === candidate.id && (
                       <div className="bg-indigo-500 text-white rounded-full p-0.5 shadow-lg shadow-indigo-500/30">
                         <FiCheck className="w-3 h-3" />
                       </div>
@@ -342,7 +305,7 @@ const VoteScreen = () => {
                     <span className="text-base font-semibold text-white truncate">
                       {
                         activeElection.candidates.find(
-                          (c) => (c._id || c.id) === selectedCandidate,
+                          (c) => c.id === selectedCandidate,
                         )?.name
                       }
                     </span>
@@ -366,8 +329,8 @@ const VoteScreen = () => {
                 className="bg-slate-900 border border-slate-700 p-6 rounded-[24px] shadow-2xl w-full max-w-sm relative overflow-hidden"
               >
                 <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
-                  <div className="p-2 bg-amber-500/10 rounded-lg">
-                    <FiShield className="text-amber-500 w-5 h-5" />
+                  <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
+                    <FiShield className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-white leading-none">
@@ -384,7 +347,7 @@ const VoteScreen = () => {
                     className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs bg-gradient-to-br from-indigo-600 to-blue-500`}
                   >
                     {activeElection.candidates
-                      .find((c) => (c._id || c.id) === selectedCandidate)
+                      .find((c) => c.id === selectedCandidate)
                       ?.name.charAt(0)}
                   </div>
                   <div>
@@ -394,7 +357,7 @@ const VoteScreen = () => {
                     <span className="text-sm font-bold text-white">
                       {
                         activeElection.candidates.find(
-                          (c) => (c._id || c.id) === selectedCandidate,
+                          (c) => c.id === selectedCandidate,
                         )?.name
                       }
                     </span>
@@ -454,7 +417,69 @@ const VoteScreen = () => {
     );
   }
 
-  return null; // Should not reach here
+  return (
+    <DashboardLayout>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="max-w-6xl mx-auto px-4"
+      >
+        <div className="mb-10 border-b border-slate-800 pb-8">
+          <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-600/20">
+              <FiShield className="text-white w-6 h-6" />
+            </div>
+            Active Ballots
+          </h1>
+          <p className="text-slate-400 mt-3 max-w-2xl text-sm leading-relaxed">
+            Select an election below to proceed.
+          </p>
+        </div>
+
+        {elections.length === 0 ? (
+          <div className="p-10 text-center bg-slate-800/20 border border-dashed border-slate-700 rounded-2xl">
+            <p className="text-slate-500 text-sm">
+              No active elections found at this moment.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {elections.map((election) => (
+              <div
+                key={election.id}
+                onClick={() => openBallot(election)}
+                className="group bg-slate-800/40 border border-slate-700/50 hover:border-indigo-500/50 rounded-2xl p-6 cursor-pointer transition-all hover:shadow-xl hover:shadow-black/20 hover:-translate-y-0.5 flex flex-col relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl -mr-8 -mt-8 group-hover:bg-indigo-500/10 transition-colors"></div>
+                <div className="flex justify-between items-center mb-3 relative z-10">
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
+                    <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></span>{" "}
+                    {election.status}
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors relative z-10">
+                  {election.title}
+                </h3>
+                <p className="text-xs text-slate-400 line-clamp-2 mb-4 leading-relaxed relative z-10 opacity-80">
+                  {election.description}
+                </p>
+                <div className="mt-auto pt-3 border-t border-slate-700/50 flex items-center justify-between relative z-10">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    {election.candidates.length} Candidates
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold flex items-center gap-1 transition-transform px-3 py-1 rounded-lg border text-indigo-400 border-indigo-500/20 bg-indigo-500/10 group-hover:translate-x-1`}
+                  >
+                    Vote Now <FiArrowRight />
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    </DashboardLayout>
+  );
 };
 
 export default VoteScreen;

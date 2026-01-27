@@ -20,7 +20,6 @@ const Landing = () => {
   const [checkStatus, setCheckStatus] = useState("idle");
   const [statusMessage, setStatusMessage] = useState("");
 
-  // Auto-dismiss alerts after 3 seconds
   useEffect(() => {
     let timer;
     if (checkStatus === "eligible" || checkStatus === "not_found") {
@@ -62,7 +61,6 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-slate-900 font-sans">
-      {/* Background FX */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/20 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-pulse"></div>
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-pulse"></div>
 
@@ -87,7 +85,6 @@ const Landing = () => {
           Secure. Transparent. Efficient.
         </p>
 
-        {/* --- LOGIN SECTION --- */}
         <div className="mb-8 min-h-[60px] relative">
           <AnimatePresence mode="wait">
             {!showLoginOptions ? (
@@ -145,18 +142,12 @@ const Landing = () => {
           </AnimatePresence>
         </div>
 
-        {/* --- STATUS CHECKER --- */}
         <div className="pt-6 border-t border-slate-800/50">
           <p className="text-xs text-slate-500 mb-3 uppercase tracking-wide font-bold flex items-center justify-center gap-2">
             <FiSearch /> Check Registration
           </p>
 
           <div className="flex gap-2 mb-3">
-            {/* FIX APPLIED HERE:
-                1. flex-1: Takes available width instead of overflowing.
-                2. min-w-0: Prevents flexbox overflow issues.
-                3. rounded-xl: Matches the button radius.
-            */}
             <Input
               placeholder="Enter Index No..."
               className="flex-1 min-w-0 text-sm py-2.5 px-4 bg-slate-950/50 border border-slate-700 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-white placeholder:text-slate-600"

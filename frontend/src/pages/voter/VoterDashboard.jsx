@@ -20,7 +20,7 @@ import {
   FiRefreshCw,
   FiTarget,
 } from "react-icons/fi";
-import { electionAPI, voteAPI } from "../../services/api";
+import { electionAPI, voteAPI, authAPI } from "../../services/api";
 import { formatDate, calculatePercentage } from "../../utils/helpers";
 
 const VoterDashboard = () => {
@@ -28,16 +28,13 @@ const VoterDashboard = () => {
   const [currentTime, setCurrentTime] = useState(
     new Date().toLocaleTimeString(),
   );
-
-  // Modal & Expansion State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState(null);
-
-  // Data State
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeElections, setActiveElections] = useState([]); // Elections available to vote
+  const [activeElections, setActiveElections] = useState([]);
   const [voteHistory, setVoteHistory] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
   const [stats, setStats] = useState({
     active: 0,
     total: 0,
@@ -45,39 +42,34 @@ const VoterDashboard = () => {
     losses: 0,
   });
 
-  // --- 1. DATA FETCHING ---
   const fetchData = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const [activeRes, historyRes] = await Promise.all([
+      const [activeRes, historyRes, userRes] = await Promise.all([
         electionAPI.getActive(),
         voteAPI.getHistory(),
+        authAPI.getCurrentUser(),
       ]);
 
       const allActiveData = activeRes.data || [];
       const historyData = Array.isArray(historyRes.data) ? historyRes.data : [];
+      setCurrentUser(userRes.data);
 
-      const votedElectionIds = new Set(
-        historyData.map((h) => h.electionId || h.election_id),
-      );
+      const votedElectionIds = new Set(historyData.map((h) => h.electionId));
 
-      // Elections the user has NOT voted in yet (for the "Live Elections" list)
       const electionsToVote = allActiveData.filter(
-        (e) => !votedElectionIds.has(e._id || e.id),
+        (e) => !votedElectionIds.has(e.id),
       );
 
       setActiveElections(electionsToVote);
       setVoteHistory(historyData);
 
-      // --- STATS CALCULATION ---
-      // 1. Total Active: Count ALL active elections (voted + unvoted)
       const totalActiveCount = allActiveData.filter(
         (e) => e.status === "Active",
       ).length;
 
-      // 2. Wins/Losses Calculation
       const wins = historyData.filter(
         (h) => h.status === "Ended" && h.myCandidate === h.winnerName,
       ).length;
@@ -87,13 +79,12 @@ const VoterDashboard = () => {
       ).length;
 
       setStats({
-        active: totalActiveCount, // Fixed: Shows all active elections
+        active: totalActiveCount,
         total: historyData.length,
         wins: wins,
         losses: losses,
       });
     } catch (err) {
-      console.error("Dashboard Data Error:", err);
       setError("Unable to load dashboard data. Please check your connection.");
     } finally {
       setIsLoading(false);
@@ -109,7 +100,6 @@ const VoterDashboard = () => {
     return () => clearInterval(clockTimer);
   }, []);
 
-  // --- 2. HELPERS ---
   const toggleRow = (id) => {
     setExpandedHistoryId((prev) => (prev === id ? null : id));
   };
@@ -123,7 +113,6 @@ const VoterDashboard = () => {
     return days > 0 ? `${days}d ${hours}h left` : `${hours}h left`;
   };
 
-  // --- 3. COMPONENTS ---
   const SimpleHistoryCard = ({ item }) => (
     <div
       onClick={() => setShowHistoryModal(true)}
@@ -154,24 +143,22 @@ const VoterDashboard = () => {
   );
 
   const PremiumHistoryCard = ({ item }) => {
-    const isExpanded = expandedHistoryId === (item._id || item.id);
+    const isExpanded = expandedHistoryId === item.id;
     const isWinner =
       item.status === "Ended" && item.myCandidate === item.winnerName;
     const isEnded = item.status === "Ended";
 
-    // Robust Vote Count Retrieval (Handles snake_case and camelCase)
-    const myVotes = item.myCandidateVotes || item.my_candidate_votes || 0;
-    const winnerVotes = item.winnerVotes || item.winner_votes || 0;
-    const totalVotes = myVotes + winnerVotes; // Simple estimate for ratio if total not provided
+    const myVotes = item.myCandidateVotes || 0;
+    const winnerVotes = item.winnerVotes || 0;
+    const totalVotes = myVotes + winnerVotes;
 
-    // Use helper.js for percentage
     const myPercent = calculatePercentage(myVotes, totalVotes);
     const oppPercent = calculatePercentage(winnerVotes, totalVotes);
 
     return (
       <div className="border border-slate-700/50 rounded-2xl overflow-hidden bg-slate-800/20 hover:bg-slate-800/40 transition-all duration-300 mb-3">
         <div
-          onClick={() => toggleRow(item._id || item.id)}
+          onClick={() => toggleRow(item.id)}
           className={`p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 cursor-pointer transition-colors ${
             isExpanded ? "bg-slate-800/80 border-b border-slate-700" : ""
           }`}
@@ -199,9 +186,7 @@ const VoterDashboard = () => {
                 Status
               </p>
               <p
-                className={`text-sm font-semibold ${
-                  isEnded ? "text-slate-400" : "text-emerald-400"
-                }`}
+                className={`text-sm font-semibold ${isEnded ? "text-slate-400" : "text-emerald-400"}`}
               >
                 {item.status}
               </p>
@@ -218,7 +203,6 @@ const VoterDashboard = () => {
         <AnimatePresence initial={false}>
           {isExpanded && (
             <motion.div
-              key="content"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -228,7 +212,7 @@ const VoterDashboard = () => {
               <div className="p-5 bg-slate-900/50 space-y-5">
                 <div className="flex justify-between items-end text-xs">
                   <div className="text-left">
-                    <span className="bg-indigo-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold mb-1 inline-block shadow-lg shadow-indigo-500/20">
+                    <span className="bg-indigo-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold mb-1 inline-block shadow-lg">
                       YOU
                     </span>
                     <div className="font-bold text-white text-sm">
@@ -256,12 +240,12 @@ const VoterDashboard = () => {
                   </div>
                 </div>
 
-                <div className="h-4 w-full bg-slate-800 rounded-full overflow-hidden flex relative shadow-inner shadow-black/50">
+                <div className="h-4 w-full bg-slate-800 rounded-full overflow-hidden flex relative shadow-inner">
                   <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-900 z-10 opacity-50"></div>
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${myPercent}%` }}
-                    transition={{ duration: 1, ease: "easeOut" }}
+                    transition={{ duration: 1 }}
                     className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400 flex items-center justify-start pl-2 text-[9px] font-bold text-white/90"
                   >
                     {myPercent > 5 && `${myPercent}%`}
@@ -269,7 +253,7 @@ const VoterDashboard = () => {
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${oppPercent}%` }}
-                    transition={{ duration: 1, ease: "easeOut", delay: 0.1 }}
+                    transition={{ duration: 1 }}
                     className={`h-full flex items-center justify-end pr-2 text-[9px] font-bold text-white/90 ${
                       isWinner
                         ? "bg-slate-600"
@@ -301,8 +285,6 @@ const VoterDashboard = () => {
       </div>
     );
   };
-
-  // --- 4. RENDER STATES ---
 
   if (isLoading) {
     return (
@@ -372,31 +354,29 @@ const VoterDashboard = () => {
         animate={{ opacity: 1 }}
         className="max-w-6xl mx-auto"
       >
-        {/* Header */}
         <div className="mb-10 border-b border-slate-800 pb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-              <div className="p-2.5 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-600/20">
+              <div className="p-2.5 bg-indigo-600 rounded-xl shadow-lg">
                 <FiActivity className="text-white w-6 h-6" />
               </div>
               Voter Portal
             </h1>
             <p className="text-slate-400 mt-3 text-sm leading-relaxed">
-              Welcome back, <strong>Voter</strong>
+              Welcome back, <strong>{currentUser?.full_name || "Voter"}</strong>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 rounded-lg border border-slate-700/50 text-xs font-mono text-slate-300">
               <FiClock className="w-3 h-3 text-indigo-400" /> {currentTime}
             </div>
-            <div className="px-4 py-2 bg-indigo-500/10 rounded-full border border-indigo-500/20 text-xs font-mono text-indigo-400 flex items-center gap-2 shadow-lg shadow-indigo-500/10">
+            <div className="px-4 py-2 bg-indigo-500/10 rounded-full border border-indigo-500/20 text-xs font-mono text-indigo-400 flex items-center gap-2 shadow-lg">
               <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>{" "}
               Secure Connection
             </div>
           </div>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
           {statCards.map((stat, idx) => (
             <div
@@ -419,11 +399,10 @@ const VoterDashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          {/* Left: Live Elections */}
           <div className="xl:col-span-2 space-y-6">
             <h2 className="text-lg font-bold text-white flex items-center gap-3">
-              <div className="p-1.5 bg-rose-500/10 rounded-lg border border-rose-500/20">
-                <FiActivity className="text-rose-500 w-4 h-4" />
+              <div className="p-1.5 bg-rose-500/10 rounded-lg border border-rose-500/20 text-rose-500">
+                <FiActivity className="w-4 h-4" />
               </div>
               Live Elections
             </h2>
@@ -437,8 +416,8 @@ const VoterDashboard = () => {
               ) : (
                 activeElections.map((election) => (
                   <div
-                    key={election.id || election._id}
-                    className="group relative bg-slate-800/40 hover:bg-slate-800/60 border border-slate-700/50 p-6 rounded-2xl transition-all duration-200 hover:border-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+                    key={election.id}
+                    className="group relative bg-slate-800/40 hover:bg-slate-800/60 border border-slate-700/50 p-6 rounded-2xl transition-all duration-200 hover:border-indigo-500/30 hover:shadow-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
                   >
                     <div>
                       <div className="flex items-center gap-3 mb-2">
@@ -448,7 +427,7 @@ const VoterDashboard = () => {
                         </span>
                         <span className="text-xs text-slate-500 flex items-center gap-1 bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/50">
                           <FiClock className="w-3 h-3 text-rose-400" />{" "}
-                          {getTimeLeft(election.end_time || election.endTime)}
+                          {getTimeLeft(election.end_time)}
                         </span>
                       </div>
                       <h3 className="text-lg font-bold text-white group-hover:text-indigo-400 transition-colors">
@@ -459,7 +438,7 @@ const VoterDashboard = () => {
                       onClick={() => navigate("/voter/vote")}
                       variant="primary"
                       size="sm"
-                      className="shadow-lg shadow-indigo-500/20 gap-2 bg-indigo-600 hover:bg-indigo-500 border-0"
+                      className="gap-2 bg-indigo-600 border-0"
                     >
                       Vote Now <FiArrowRight className="w-4 h-4" />
                     </Button>
@@ -469,15 +448,13 @@ const VoterDashboard = () => {
             </div>
           </div>
 
-          {/* Right: Recent History */}
           <div className="xl:col-span-1 space-y-6">
             <h2 className="text-lg font-bold text-white flex items-center gap-3">
-              <div className="p-1.5 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
-                <FiCheckCircle className="text-indigo-500 w-4 h-4" />
+              <div className="p-1.5 bg-indigo-500/10 rounded-lg border border-indigo-500/20 text-indigo-500">
+                <FiCheckCircle className="w-4 h-4" />
               </div>
               Recent Activity
             </h2>
-
             <div className="space-y-4">
               {voteHistory.length === 0 ? (
                 <div className="p-6 text-center text-slate-500 text-sm bg-slate-800/40 rounded-2xl border border-slate-700/50">
@@ -487,10 +464,9 @@ const VoterDashboard = () => {
                 voteHistory
                   .slice(0, 3)
                   .map((item) => (
-                    <SimpleHistoryCard key={item._id || item.id} item={item} />
+                    <SimpleHistoryCard key={item.id} item={item} />
                   ))
               )}
-
               {voteHistory.length > 0 && (
                 <button
                   onClick={() => setShowHistoryModal(true)}
@@ -503,15 +479,13 @@ const VoterDashboard = () => {
           </div>
         </div>
 
-        {/* --- HISTORY MODAL --- */}
         <AnimatePresence>
           {showHistoryModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
                 className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
               >
                 <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/50 sticky top-0 z-10 backdrop-blur-md">
@@ -531,13 +505,11 @@ const VoterDashboard = () => {
                     <FiX className="w-6 h-6" />
                   </button>
                 </div>
-
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-900 space-y-4">
                   {voteHistory.map((item) => (
-                    <PremiumHistoryCard key={item._id || item.id} item={item} />
+                    <PremiumHistoryCard key={item.id} item={item} />
                   ))}
                 </div>
-
                 <div className="p-4 border-t border-slate-800 bg-slate-800/30 text-right">
                   <Button
                     onClick={() => setShowHistoryModal(false)}

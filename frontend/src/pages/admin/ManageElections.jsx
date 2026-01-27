@@ -17,8 +17,8 @@ import {
   FiRefreshCw,
 } from "react-icons/fi";
 import { electionAPI } from "../../services/api";
+import { formatDate } from "../../utils/helpers";
 
-// --- EXTERNAL INPUT COMPONENT (Prevents Focus Loss) ---
 const SimpleInput = ({ label, icon: Icon, ...props }) => (
   <div>
     {label && (
@@ -37,23 +37,20 @@ const SimpleInput = ({ label, icon: Icon, ...props }) => (
 );
 
 const ManageElections = () => {
-  // --- STATE ---
   const [elections, setElections] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
-
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
-  // --- FORM STATE ---
   const initialFormState = {
     title: "",
     description: "",
-    startDate: new Date().toISOString().split("T")[0], // Default to Today
-    startTime: "00:00", // Default Start
-    endDate: new Date().toISOString().split("T")[0], // Default to Today
-    endTime: "00:00", // Default End
+    startDate: new Date().toISOString().split("T")[0],
+    startTime: "00:00",
+    endDate: new Date().toISOString().split("T")[0],
+    endTime: "00:00",
     candidates: [
       { name: "", designation: "" },
       { name: "", designation: "" },
@@ -62,7 +59,6 @@ const ManageElections = () => {
 
   const [formData, setFormData] = useState(initialFormState);
 
-  // --- FETCH DATA (With Polling) ---
   const fetchElections = async (showLoading = true) => {
     try {
       if (showLoading) setIsLoading(true);
@@ -70,7 +66,6 @@ const ManageElections = () => {
       const response = await electionAPI.getAll();
       setElections(response.data);
     } catch (err) {
-      console.error("Fetch Error:", err);
       if (showLoading) setError("Failed to load elections.");
     } finally {
       if (showLoading) setIsLoading(false);
@@ -85,7 +80,6 @@ const ManageElections = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // --- HANDLERS ---
   const handleCandidateChange = (index, field, value) => {
     const updatedCandidates = [...formData.candidates];
     updatedCandidates[index][field] = value;
@@ -119,17 +113,15 @@ const ManageElections = () => {
     }
   };
 
-  // --- HELPER: PARSE DB UTC TIME ---
   const parseDatabaseTime = (isoString) => {
     if (!isoString) return { date: "", time: "" };
     const [datePart, timePart] = isoString.split("T");
-    const time = timePart.substring(0, 5); // Take "05:00"
+    const time = timePart.substring(0, 5);
     return { date: datePart, time: time };
   };
 
   const openEditModal = (election) => {
     setEditingId(election.id);
-
     const start = parseDatabaseTime(election.start_time);
     const end = parseDatabaseTime(election.end_time);
 
@@ -185,7 +177,6 @@ const ManageElections = () => {
       setShowModal(false);
       fetchElections(true);
     } catch (err) {
-      console.error("Save Error:", err);
       alert(err.response?.data?.message || "Failed to save election.");
     } finally {
       setIsSaving(false);
@@ -195,7 +186,6 @@ const ManageElections = () => {
   return (
     <AdminLayout>
       <div className="max-w-7xl mx-auto">
-        {/* --- HEADER --- */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4 border-b border-slate-800 pb-8 animate-fade-in">
           <div>
             <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
@@ -217,7 +207,6 @@ const ManageElections = () => {
           </button>
         </div>
 
-        {/* --- ERROR STATE --- */}
         {error && (
           <div className="bg-slate-900/50 border border-red-500/20 rounded-2xl p-8 text-center mb-8 animate-fade-in flex flex-col items-center">
             <div className="bg-red-500/10 p-4 rounded-full mb-3">
@@ -236,7 +225,6 @@ const ManageElections = () => {
           </div>
         )}
 
-        {/* --- LOADING STATE --- */}
         {isLoading && !error && (
           <div className="flex flex-col items-center justify-center h-64 text-slate-500">
             <FiLoader className="w-10 h-10 animate-spin mb-4 text-rose-500" />
@@ -244,7 +232,6 @@ const ManageElections = () => {
           </div>
         )}
 
-        {/* --- GRID --- */}
         {!isLoading && !error && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up">
             {elections.map((election) => (
@@ -252,7 +239,6 @@ const ManageElections = () => {
                 key={election.id}
                 className="bg-slate-800/40 border border-slate-700/50 rounded-2xl overflow-hidden group hover:border-rose-500/30 transition-all hover:shadow-2xl hover:-translate-y-1 flex flex-col relative"
               >
-                {/* Banner Area */}
                 <div className="h-32 bg-gradient-to-br from-slate-800 to-slate-900 relative flex items-center justify-center border-b border-slate-700/50">
                   <div className="absolute inset-0 bg-slate-900/50"></div>
                   <FiActivity className="text-slate-700 w-12 h-12 relative z-10 group-hover:text-rose-500/20 transition-colors duration-500" />
@@ -280,7 +266,6 @@ const ManageElections = () => {
                   </div>
                 </div>
 
-                {/* Content */}
                 <div className="p-6 flex-1 flex flex-col relative z-10 -mt-6">
                   <div className="bg-slate-900 border border-slate-700/50 p-4 rounded-xl shadow-lg mb-4">
                     <h3 className="text-lg font-bold text-white leading-tight line-clamp-2 mb-1">
@@ -296,9 +281,7 @@ const ManageElections = () => {
                       <div className="p-1.5 bg-slate-800 rounded border border-slate-700">
                         <FiCalendar className="text-rose-400" />
                       </div>
-                      <span>
-                        {new Date(election.start_time).toLocaleDateString()}
-                      </span>
+                      <span>{formatDate(election.start_time)}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="p-1.5 bg-slate-800 rounded border border-slate-700">
@@ -358,7 +341,6 @@ const ManageElections = () => {
           </div>
         )}
 
-        {/* --- MODAL --- */}
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
             <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl animate-slide-up relative flex flex-col my-auto">
@@ -382,7 +364,6 @@ const ManageElections = () => {
               </div>
 
               <div className="p-6 overflow-y-auto max-h-[70vh] space-y-6">
-                {/* Basic Fields */}
                 <div className="space-y-4">
                   <SimpleInput
                     label="Title"
@@ -474,7 +455,6 @@ const ManageElections = () => {
                   </div>
                 </div>
 
-                {/* Candidates */}
                 <div className="border-t border-slate-700/50 pt-6">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -498,7 +478,6 @@ const ManageElections = () => {
                         <span className="text-slate-500 font-mono text-xs w-6 text-center">
                           {index + 1}
                         </span>
-                        {/* Name Input */}
                         <input
                           type="text"
                           placeholder="Candidate Name"
@@ -508,7 +487,6 @@ const ManageElections = () => {
                             handleCandidateChange(index, "name", e.target.value)
                           }
                         />
-                        {/* Designation Input (Replaces Party) */}
                         <input
                           type="text"
                           placeholder="Designation / Info"
@@ -544,7 +522,7 @@ const ManageElections = () => {
                 <button
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="w-full sm:flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm shadow-lg shadow-rose-500/20 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-wait"
+                  className="w-full sm:flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm shadow-lg shadow-rose-500/20 transition-all active:scale-95 disabled:opacity-70"
                 >
                   {isSaving ? (
                     <>

@@ -11,24 +11,27 @@ export const AuthProvider = ({ children }) => {
     const initAuth = async () => {
       try {
         const response = await authAPI.getCurrentUser();
-        const userData = response.data?.user || response.data;
-        setUser(userData);
+        setUser(response.data);
       } catch (error) {
         setUser(null);
       } finally {
         setLoading(false);
       }
     };
-
     initAuth();
   }, []);
 
   const login = async (credentials) => {
     try {
       const response = await authAPI.login(credentials);
-      const userData = response.data?.user || response.data;
-      setUser(userData);
-      return userData;
+      const userData = response.data;
+
+      if (userData.token) {
+        localStorage.setItem("authToken", userData.token);
+      }
+
+      setUser(userData.user || userData);
+      return userData.user || userData;
     } catch (error) {
       throw error;
     }
@@ -38,8 +41,9 @@ export const AuthProvider = ({ children }) => {
     try {
       await authAPI.logout();
     } catch (error) {
-      // Ignore logout errors
+      // Handled silently
     } finally {
+      localStorage.removeItem("authToken");
       setUser(null);
     }
   };

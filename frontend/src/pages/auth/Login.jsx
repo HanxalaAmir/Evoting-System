@@ -71,21 +71,18 @@ const Login = () => {
     setGlobalError("");
 
     try {
-      // The context's login function handles the API call
-      // Ensure your AuthContext saves the 'token' from response to localStorage!
       const res = await login({
         identifier: formData.identifier,
         password: formData.password,
-        role: role,
+        role,
       });
 
-      // If the context doesn't handle saving token, check the response here:
-      // if (res.token) localStorage.setItem('authToken', res.token);
-
-      if (res && res.role === "admin") navigate("/admin/dashboard");
-      else navigate("/voter/dashboard");
+      if (res && res.role === "admin") {
+        navigate("/admin/dashboard");
+      } else {
+        navigate("/voter/dashboard");
+      }
     } catch (error) {
-      console.error("Login Failed:", error);
       setGlobalError(error.response?.data?.message || "Invalid credentials.");
     } finally {
       setIsLoading(false);
@@ -96,7 +93,9 @@ const Login = () => {
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-900 relative overflow-hidden font-sans">
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div
-          className={`absolute top-10 left-10 w-72 h-72 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob ${isAdmin ? "bg-rose-500/20" : "bg-indigo-500/20"}`}
+          className={`absolute top-10 left-10 w-72 h-72 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob ${
+            isAdmin ? "bg-rose-500/20" : "bg-indigo-500/20"
+          }`}
         ></div>
         <div className="absolute bottom-10 right-10 w-96 h-96 bg-purple-500/10 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
       </div>
@@ -128,7 +127,11 @@ const Login = () => {
           <>
             <div className="text-center mb-8">
               <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg ${isAdmin ? "bg-rose-500/10 text-rose-500 shadow-rose-500/20" : "bg-indigo-500/10 text-indigo-500 shadow-indigo-500/20"}`}
+                className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg ${
+                  isAdmin
+                    ? "bg-rose-500/10 text-rose-500 shadow-rose-500/20"
+                    : "bg-indigo-500/10 text-indigo-500 shadow-indigo-500/20"
+                }`}
               >
                 {isAdmin ? (
                   <FiShield className="w-6 h-6" />
@@ -186,7 +189,11 @@ const Login = () => {
                 type="submit"
                 variant="primary"
                 size="md"
-                className={`w-full ${isAdmin ? "bg-rose-600 hover:bg-rose-500 shadow-rose-500/20" : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20"}`}
+                className={`w-full ${
+                  isAdmin
+                    ? "bg-rose-600 hover:bg-rose-500 shadow-rose-500/20"
+                    : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20"
+                }`}
                 isLoading={isLoading}
               >
                 {isAdmin ? "Access Dashboard" : "Login to Vote"}

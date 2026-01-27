@@ -39,9 +39,9 @@ const sendEmailOTP = async (email, otp, type) => {
       url,
       {
         sender: { name: 'UniVoting Security', email: process.env.EMAIL_FROM },
-        to: [{ email: email }],
-        subject: subject,
-        htmlContent: htmlContent,
+        to: [{ email }],
+        subject,
+        htmlContent,
       },
       {
         headers: {
@@ -53,7 +53,6 @@ const sendEmailOTP = async (email, otp, type) => {
     );
 
     return true;
-
   } catch (error) {
     throw new Error('Failed to send verification email.');
   }

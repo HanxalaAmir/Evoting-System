@@ -16,24 +16,27 @@ import {
   FiRefreshCw,
 } from "react-icons/fi";
 import { authAPI } from "../../services/api";
+import {
+  formatDate,
+  formatTime,
+  calculatePercentage,
+  truncateText,
+} from "../../utils/helpers";
 
 const AdminRegister = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-
   const [otpTimer, setOtpTimer] = useState(0);
   const [resendAttempts, setResendAttempts] = useState(0);
-
   const [formData, setFormData] = useState({
-    fullName: "",
+    full_name: "",
     username: "",
     email: "",
     password: "",
     otp: "",
     secretCode: "",
   });
-
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -54,13 +57,13 @@ const AdminRegister = () => {
 
   const validateStep1 = () => {
     const newErrors = {};
-    if (!formData.fullName.trim()) newErrors.fullName = "Full Name is required";
+    if (!formData.full_name.trim())
+      newErrors.full_name = "Full Name is required";
     if (!formData.username.trim()) newErrors.username = "Username is required";
     if (!formData.email.trim() || !/\S+@\S+\.\S+/.test(formData.email))
       newErrors.email = "Valid email is required";
     if (formData.password.length < 6)
       newErrors.password = "Password must be at least 6 characters";
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -97,7 +100,6 @@ const AdminRegister = () => {
     if (step === 1 && validateStep1()) {
       setIsLoading(true);
       setErrors({});
-
       try {
         const success = await sendOtp();
         if (success) {
@@ -112,7 +114,6 @@ const AdminRegister = () => {
     } else if (step === 2 && validateStep2()) {
       setIsLoading(true);
       setErrors({});
-
       try {
         await authAPI.verifyOTP({
           email: formData.email,
@@ -134,16 +135,13 @@ const AdminRegister = () => {
 
   const handleResendOtp = async () => {
     if (otpTimer > 0) return;
-
     setIsLoading(true);
     setErrors({});
-
     try {
       const success = await sendOtp();
       if (success) {
         const newAttempts = resendAttempts + 1;
         setResendAttempts(newAttempts);
-
         if (newAttempts >= 3) {
           setOtpTimer(1200);
           setErrors({ form: "Max attempts reached. Please wait 20 minutes." });
@@ -159,13 +157,11 @@ const AdminRegister = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateStep3()) return;
-
     setIsLoading(true);
     setErrors({});
-
     try {
       await authAPI.register({
-        fullName: formData.fullName,
+        full_name: formData.full_name,
         username: formData.username,
         email: formData.email,
         password: formData.password,
@@ -173,8 +169,6 @@ const AdminRegister = () => {
         role: "admin",
         secretCode: formData.secretCode,
       });
-
-      // Redirect to Admin Login Page
       navigate("/login?role=admin");
     } catch (error) {
       setErrors({
@@ -191,7 +185,7 @@ const AdminRegister = () => {
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-900 relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-rose-600/20 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-orange-600/10 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-orange-600/10 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob"></div>
       </div>
 
       <div className="relative z-10 bg-slate-900/60 backdrop-blur-xl border border-rose-500/30 p-8 rounded-2xl shadow-2xl shadow-rose-900/20 max-w-md w-full ring-1 ring-white/5">
@@ -244,11 +238,11 @@ const AdminRegister = () => {
                 <Input
                   label="Full Name"
                   placeholder="John Doe"
-                  value={formData.fullName}
+                  value={formData.full_name}
                   onChange={(e) =>
-                    setFormData({ ...formData, fullName: e.target.value })
+                    setFormData({ ...formData, full_name: e.target.value })
                   }
-                  error={errors.fullName}
+                  error={errors.full_name}
                 />
                 <Input
                   label="Username"
@@ -282,7 +276,6 @@ const AdminRegister = () => {
                 }
                 error={errors.password}
               />
-
               <Button
                 onClick={handleNext}
                 variant="primary"
@@ -315,9 +308,7 @@ const AdminRegister = () => {
                     type="text"
                     maxLength="6"
                     placeholder="------"
-                    className={`w-full bg-slate-900 border ${
-                      errors.otp ? "border-red-500" : "border-rose-500/30"
-                    } rounded-xl py-4 text-center text-3xl font-mono tracking-[0.5em] text-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all placeholder:text-slate-700`}
+                    className={`w-full bg-slate-900 border ${errors.otp ? "border-red-500" : "border-rose-500/30"} rounded-xl py-4 text-center text-3xl font-mono tracking-[0.5em] text-white focus:border-rose-500 outline-none placeholder:text-slate-700`}
                     value={formData.otp}
                     onChange={(e) =>
                       setFormData({
@@ -336,7 +327,6 @@ const AdminRegister = () => {
                   <p className="text-red-400 text-xs mt-2">{errors.otp}</p>
                 )}
               </div>
-
               <Button
                 onClick={handleNext}
                 variant="primary"
@@ -345,7 +335,6 @@ const AdminRegister = () => {
               >
                 Verify & Continue
               </Button>
-
               <div className="text-xs flex flex-col gap-2 items-center pt-2">
                 {otpTimer > 0 ? (
                   <span className="text-slate-500 flex items-center gap-1.5 bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700">
@@ -358,19 +347,18 @@ const AdminRegister = () => {
                   <button
                     onClick={handleResendOtp}
                     disabled={isLoading}
-                    className="text-slate-400 hover:text-white underline transition-colors flex items-center gap-1"
+                    className="text-slate-400 hover:text-white underline flex items-center gap-1"
                   >
                     <FiRefreshCw className="w-3 h-3" /> Resend OTP Code
                   </button>
                 )}
-
                 <button
                   onClick={() => {
                     setStep(1);
                     setOtpTimer(0);
                     setResendAttempts(0);
                   }}
-                  className="text-slate-600 hover:text-rose-400 transition-colors text-[10px] uppercase tracking-wide font-bold mt-4"
+                  className="text-slate-600 hover:text-rose-400 text-[10px] uppercase font-bold mt-4"
                 >
                   Change Email Address
                 </button>
@@ -390,12 +378,10 @@ const AdminRegister = () => {
               <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-4 flex items-start gap-3">
                 <FiAlertTriangle className="text-rose-500 mt-1 shrink-0 w-5 h-5" />
                 <p className="text-xs text-rose-200 leading-relaxed">
-                  <strong>Security Check:</strong> This step requires a
-                  High-Level Authorization Code provided by the System
-                  Administrator to prevent unauthorized admin creation.
+                  <strong>Security Check:</strong> Authorization code required
+                  to prevent unauthorized system admin access.
                 </p>
               </div>
-
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block ml-1">
                   Secret Key
@@ -405,9 +391,7 @@ const AdminRegister = () => {
                   <input
                     type="password"
                     placeholder="ENTER-ADMIN-KEY"
-                    className={`w-full bg-slate-950/50 border ${
-                      errors.secretCode ? "border-red-500" : "border-slate-700"
-                    } rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:border-rose-500 outline-none transition-colors font-mono text-center tracking-widest`}
+                    className={`w-full bg-slate-950/50 border ${errors.secretCode ? "border-red-500" : "border-slate-700"} rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:border-rose-500 outline-none font-mono text-center tracking-widest`}
                     value={formData.secretCode}
                     onChange={(e) =>
                       setFormData({ ...formData, secretCode: e.target.value })
@@ -420,7 +404,6 @@ const AdminRegister = () => {
                   </p>
                 )}
               </div>
-
               <Button
                 onClick={handleSubmit}
                 variant="primary"

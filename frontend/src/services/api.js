@@ -9,14 +9,17 @@ const API = axios.create({
 });
 
 API.interceptors.request.use((config) => {
+  const token = localStorage.getItem("authToken");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    error.customMessage =
-      error.response?.data?.message || "An unexpected error occurred.";
+    error.customMessage = error.response?.data?.message || "An unexpected error occurred.";
     return Promise.reject(error);
   }
 );
@@ -45,8 +48,7 @@ export const electionAPI = {
 
 export const voteAPI = {
   checkRegistration: (indexNo) => API.get(`/votes/check/${indexNo}`),
-  checkEligibility: (electionId) =>
-    API.get(`/votes/eligibility/${electionId}`),
+  checkEligibility: (electionId) => API.get(`/votes/eligibility/${electionId}`),
   castVote: (data) => API.post("/votes", data),
   getHistory: () => API.get("/votes/history")
 };
