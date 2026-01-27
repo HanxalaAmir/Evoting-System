@@ -2,6 +2,7 @@ const supabase = require('../config/supabaseClient');
 const asyncHandler = require('../middleware/asyncHandler');
 const AppError = require('../utils/AppError');
 
+// Helper to check status based on time
 const determineStatus = (start, end) => {
     const now = new Date();
     const startTime = new Date(start);
@@ -13,6 +14,7 @@ const determineStatus = (start, end) => {
 };
 
 const getAllElections = asyncHandler(async (req, res, next) => {
+    // We select candidates(*) which automatically includes the 'votes' column
     const { data: allElections, error } = await supabase
         .from('elections')
         .select(`*, candidates (*)`)
@@ -20,6 +22,7 @@ const getAllElections = asyncHandler(async (req, res, next) => {
 
     if (error) throw new AppError(error.message, 500);
 
+    // Auto-update status if time has passed
     const processedData = allElections.map(e => {
         const correctStatus = determineStatus(e.start_time, e.end_time);
         if (e.status !== correctStatus) {
@@ -63,6 +66,7 @@ const createElection = asyncHandler(async (req, res, next) => {
         throw new AppError('Invalid input. Title, dates, and at least 2 candidates are required.', 400);
     }
 
+    // 1. Create Election
     const { data: election, error: err1 } = await supabase
         .from('elections')
         .insert([{
@@ -77,14 +81,15 @@ const createElection = asyncHandler(async (req, res, next) => {
 
     if (err1) throw new AppError(err1.message, 500);
 
+    // 2. Prepare Candidates (Removed 'party', kept 'color' & 'designation')
     const candidatesData = candidates.map(c => ({
         election_id: election.id,
         name: c.name,
-        party: c.party,
         designation: c.designation || 'Independent',
-        color: c.color
+        color: c.color // Critical for UI gradients
     }));
 
+    // 3. Insert Candidates
     const { error: err2 } = await supabase.from('candidates').insert(candidatesData);
     if (err2) throw new AppError(err2.message, 500);
 
@@ -110,24 +115,36 @@ const updateElection = asyncHandler(async (req, res, next) => {
         if (error) throw new AppError(error.message, 500);
     }
 
+    // Handle Candidates Update
     if (candidates && Array.isArray(candidates)) {
         const { data: existing } = await supabase.from('candidates').select('id').eq('election_id', id);
         const existingIds = existing.map(c => c.id);
         const incomingIds = candidates.filter(c => c.id).map(c => c.id);
 
+        // Delete removed candidates
         const toDelete = existingIds.filter(x => !incomingIds.includes(x));
         if (toDelete.length > 0) {
             await supabase.from('candidates').delete().in('id', toDelete);
         }
 
+        // Upsert (Update or Insert)
         for (const c of candidates) {
             if (c.id) {
                 await supabase.from('candidates')
-                    .update({ name: c.name, designation: c.designation, party: c.party })
+                    .update({
+                        name: c.name,
+                        designation: c.designation,
+                        color: c.color
+                    })
                     .eq('id', c.id);
             } else {
                 await supabase.from('candidates')
-                    .insert({ election_id: id, name: c.name, designation: c.designation, party: c.party });
+                    .insert({
+                        election_id: id,
+                        name: c.name,
+                        designation: c.designation,
+                        color: c.color
+                    });
             }
         }
     }
@@ -142,6 +159,7 @@ const deleteElection = asyncHandler(async (req, res, next) => {
 });
 
 const getElectionStats = asyncHandler(async (req, res, next) => {
+    // Quick stats for admin dashboard
     const { count: total } = await supabase.from('elections').select('*', { count: 'exact', head: true });
     const { count: active } = await supabase.from('elections').select('*', { count: 'exact', head: true }).eq('status', 'Active');
     const { count: votes } = await supabase.from('votes').select('*', { count: 'exact', head: true });
@@ -156,22 +174,25 @@ const getElectionStats = asyncHandler(async (req, res, next) => {
 });
 
 const getElectionResults = asyncHandler(async (req, res, next) => {
+    // FIXED: Select 'votes' (your DB column name) instead of 'vote_count'
+    // Removed 'party' from selection
     const { data: candidates, error } = await supabase
         .from('candidates')
-        .select('id, name, party, vote_count')
+        .select('id, name, designation, votes, color')
         .eq('election_id', req.params.id)
-        .order('vote_count', { ascending: false });
+        .order('votes', { ascending: false });
 
     if (error) throw new AppError('Failed to fetch results', 500);
 
-    const total = candidates.reduce((sum, c) => sum + (c.vote_count || 0), 0);
+    const total = candidates.reduce((sum, c) => sum + (c.votes || 0), 0);
 
     const results = candidates.map(c => ({
         id: c.id,
         name: c.name,
-        party: c.party,
-        votes: c.vote_count || 0,
-        percentage: total === 0 ? 0 : ((c.vote_count / total) * 100).toFixed(1)
+        designation: c.designation,
+        color: c.color,
+        votes: c.votes || 0,
+        percentage: total === 0 ? 0 : ((c.votes / total) * 100).toFixed(1)
     }));
 
     res.status(200).json(results);

@@ -18,8 +18,10 @@ import {
   FiLoader,
   FiFilter,
   FiRefreshCw,
+  FiTarget,
 } from "react-icons/fi";
 import { electionAPI, voteAPI } from "../../services/api";
+import { formatDate, calculatePercentage } from "../../utils/helpers";
 
 const VoterDashboard = () => {
   const navigate = useNavigate();
@@ -34,7 +36,7 @@ const VoterDashboard = () => {
   // Data State
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeElections, setActiveElections] = useState([]);
+  const [activeElections, setActiveElections] = useState([]); // Elections available to vote
   const [voteHistory, setVoteHistory] = useState([]);
   const [stats, setStats] = useState({
     active: 0,
@@ -61,6 +63,7 @@ const VoterDashboard = () => {
         historyData.map((h) => h.electionId || h.election_id),
       );
 
+      // Elections the user has NOT voted in yet (for the "Live Elections" list)
       const electionsToVote = allActiveData.filter(
         (e) => !votedElectionIds.has(e._id || e.id),
       );
@@ -68,6 +71,13 @@ const VoterDashboard = () => {
       setActiveElections(electionsToVote);
       setVoteHistory(historyData);
 
+      // --- STATS CALCULATION ---
+      // 1. Total Active: Count ALL active elections (voted + unvoted)
+      const totalActiveCount = allActiveData.filter(
+        (e) => e.status === "Active",
+      ).length;
+
+      // 2. Wins/Losses Calculation
       const wins = historyData.filter(
         (h) => h.status === "Ended" && h.myCandidate === h.winnerName,
       ).length;
@@ -77,7 +87,7 @@ const VoterDashboard = () => {
       ).length;
 
       setStats({
-        active: electionsToVote.length,
+        active: totalActiveCount, // Fixed: Shows all active elections
         total: historyData.length,
         wins: wins,
         losses: losses,
@@ -111,14 +121,6 @@ const VoterDashboard = () => {
     const hours = Math.floor((total / (1000 * 60 * 60)) % 24);
     const days = Math.floor(total / (1000 * 60 * 60 * 24));
     return days > 0 ? `${days}d ${hours}h left` : `${hours}h left`;
-  };
-
-  const getRatio = (myVotes, winnerVotes, isWinner) => {
-    if (isWinner) return { myPercent: 70, oppPercent: 30 };
-    const total = (myVotes || 0) + (winnerVotes || 0);
-    if (total === 0) return { myPercent: 50, oppPercent: 50 };
-    const myPercent = Math.round((myVotes / total) * 100);
-    return { myPercent, oppPercent: 100 - myPercent };
   };
 
   // --- 3. COMPONENTS ---
@@ -156,11 +158,15 @@ const VoterDashboard = () => {
     const isWinner =
       item.status === "Ended" && item.myCandidate === item.winnerName;
     const isEnded = item.status === "Ended";
-    const { myPercent, oppPercent } = getRatio(
-      item.myCandidateVotes,
-      item.winnerVotes,
-      isWinner,
-    );
+
+    // Robust Vote Count Retrieval (Handles snake_case and camelCase)
+    const myVotes = item.myCandidateVotes || item.my_candidate_votes || 0;
+    const winnerVotes = item.winnerVotes || item.winner_votes || 0;
+    const totalVotes = myVotes + winnerVotes; // Simple estimate for ratio if total not provided
+
+    // Use helper.js for percentage
+    const myPercent = calculatePercentage(myVotes, totalVotes);
+    const oppPercent = calculatePercentage(winnerVotes, totalVotes);
 
     return (
       <div className="border border-slate-700/50 rounded-2xl overflow-hidden bg-slate-800/20 hover:bg-slate-800/40 transition-all duration-300 mb-3">
@@ -177,7 +183,7 @@ const VoterDashboard = () => {
             </h3>
             <div className="flex items-center gap-3 text-xs text-slate-400">
               <span className="flex items-center gap-1">
-                <FiCalendar /> {new Date(item.date).toLocaleDateString()}
+                <FiCalendar /> {formatDate(item.date)}
               </span>
               <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
               <span>
@@ -228,9 +234,7 @@ const VoterDashboard = () => {
                     <div className="font-bold text-white text-sm">
                       {item.myCandidate}
                     </div>
-                    <div className="text-slate-500">
-                      {item.myCandidateVotes || 0} Votes
-                    </div>
+                    <div className="text-slate-500">{myVotes} Votes</div>
                   </div>
 
                   <div className="text-right">
@@ -247,9 +251,7 @@ const VoterDashboard = () => {
                       {isWinner ? "Rest of Field" : item.winnerName || "TBD"}
                     </div>
                     <div className="text-slate-500">
-                      {isWinner
-                        ? "Trailing"
-                        : (item.winnerVotes || 0) + " Votes"}
+                      {isWinner ? "Trailing" : `${winnerVotes} Votes`}
                     </div>
                   </div>
                 </div>
@@ -262,7 +264,7 @@ const VoterDashboard = () => {
                     transition={{ duration: 1, ease: "easeOut" }}
                     className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400 flex items-center justify-start pl-2 text-[9px] font-bold text-white/90"
                   >
-                    {myPercent}%
+                    {myPercent > 5 && `${myPercent}%`}
                   </motion.div>
                   <motion.div
                     initial={{ width: 0 }}
@@ -274,7 +276,7 @@ const VoterDashboard = () => {
                         : "bg-gradient-to-l from-emerald-600 to-emerald-400"
                     }`}
                   >
-                    {oppPercent}%
+                    {oppPercent > 5 && `${oppPercent}%`}
                   </motion.div>
                 </div>
 
@@ -286,7 +288,7 @@ const VoterDashboard = () => {
                   ) : (
                     <span className="text-slate-500 text-xs flex items-center justify-center gap-1 mt-2">
                       <FiTarget />{" "}
-                      {oppPercent > myPercent
+                      {Number(oppPercent) > Number(myPercent)
                         ? "Your candidate did not win this time."
                         : "Results pending final count."}
                     </span>
@@ -370,7 +372,7 @@ const VoterDashboard = () => {
         animate={{ opacity: 1 }}
         className="max-w-6xl mx-auto"
       >
-        {/* Updated Header with matching style */}
+        {/* Header */}
         <div className="mb-10 border-b border-slate-800 pb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
