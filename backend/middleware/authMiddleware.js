@@ -6,12 +6,9 @@ const AppError = require("../utils/AppError");
 const protect = asyncHandler(async (req, res, next) => {
   let token;
 
-  // 1. Try to get token from Cookie
   if (req.cookies && req.cookies.jwt) {
     token = req.cookies.jwt;
-  }
-  // 2. Fallback: Try to get token from Authorization Header (Bearer Token)
-  else if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
+  } else if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
     token = req.headers.authorization.split(" ")[1];
   }
 
@@ -25,7 +22,7 @@ const protect = asyncHandler(async (req, res, next) => {
 
     const { data: user, error } = await supabase
       .from("users")
-      .select("id, full_name, username, email, role, two_factor_enabled")
+      .select("id, full_name, username, email, role")
       .eq("id", userId)
       .single();
 

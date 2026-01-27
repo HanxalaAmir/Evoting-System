@@ -111,7 +111,6 @@ const registerUser = asyncHandler(async (req, res, next) => {
 
   await supabase.from('otp_codes').delete().eq('email', email);
 
-  // UPDATED: Capture the token to send it in the JSON response
   const token = generateToken(res, user.id, user.role);
 
   res.status(201).json({
@@ -120,7 +119,7 @@ const registerUser = asyncHandler(async (req, res, next) => {
     username: user.username,
     email: user.email,
     role: user.role,
-    token: token // Sent to Frontend for LocalStorage
+    token: token
   });
 });
 
@@ -141,9 +140,7 @@ const loginUser = asyncHandler(async (req, res, next) => {
     throw new AppError(`Access Denied. This account is not authorized for ${role} access.`, 403);
   }
 
-  // UPDATED: Capture the token to send it in the JSON response
   const token = generateToken(res, user.id, user.role);
-  console.log('Generated token:', token);
 
   res.status(200).json({
     id: user.id,
@@ -151,7 +148,7 @@ const loginUser = asyncHandler(async (req, res, next) => {
     username: user.username,
     email: user.email,
     role: user.role,
-    token: token // Sent to Frontend for LocalStorage
+    token: token
   });
 });
 
@@ -168,7 +165,6 @@ const logoutUser = asyncHandler(async (req, res, next) => {
 const getCurrentUser = asyncHandler(async (req, res, next) => {
   let token = req.cookies.jwt;
 
-  // UPDATED: Check Header if Cookie fails (The "Bearer Token" Fix)
   if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
   }
@@ -179,11 +175,12 @@ const getCurrentUser = asyncHandler(async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId || decoded.id;
 
     const { data: user } = await supabase
       .from('users')
       .select('id, full_name, username, email, role')
-      .eq('id', decoded.userId)
+      .eq('id', userId)
       .maybeSingle();
 
     if (!user) {
@@ -192,7 +189,6 @@ const getCurrentUser = asyncHandler(async (req, res, next) => {
 
     res.status(200).json(user);
   } catch (error) {
-    // Return null if token is invalid
     return res.status(200).json(null);
   }
 });

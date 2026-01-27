@@ -1,7 +1,7 @@
 const supabase = require('../config/supabaseClient');
 const asyncHandler = require('../middleware/asyncHandler');
 const AppError = require('../utils/AppError');
-const crypto = require('crypto'); // Added for secure hashing
+const crypto = require('crypto');
 
 const castVote = asyncHandler(async (req, res, next) => {
   const { electionId, candidateId, indexNumber } = req.body;
@@ -11,7 +11,6 @@ const castVote = asyncHandler(async (req, res, next) => {
     throw new AppError('Missing required fields', 400);
   }
 
-  // 1. Check Election Status
   const { data: election, error: electionError } = await supabase
     .from('elections')
     .select('status, title')
@@ -26,7 +25,6 @@ const castVote = asyncHandler(async (req, res, next) => {
     throw new AppError('Election is closed', 400);
   }
 
-  // 2. Check Duplicate Vote
   const { data: existingVote } = await supabase
     .from('votes')
     .select('id')
@@ -38,24 +36,18 @@ const castVote = asyncHandler(async (req, res, next) => {
     throw new AppError('You have already voted in this election', 409);
   }
 
-  // 3. Generate Secure Hash (Fixes the NULL issue)
   const rawData = `${electionId}-${userId}-${Date.now()}-${crypto.randomBytes(16).toString('hex')}`;
   const voteHash = crypto.createHash('sha256').update(rawData).digest('hex');
 
-  // 4. Insert Vote
-  // We removed 'timestamp' (using created_at) and added 'vote_hash'
   const { error: voteError } = await supabase.from('votes').insert([{
     user_id: userId,
     election_id: electionId,
     candidate_id: candidateId,
-    index_number: indexNumber,
+    index_number: indexNumber, // Ensure this column exists in 'votes' based on your input
     vote_hash: voteHash
   }]);
 
   if (voteError) throw new AppError(voteError.message, 500);
-
-  // NOTE: Manual update of 'candidates' table removed. 
-  // Your SQL Trigger 'on_vote_cast' now handles the count automatically!
 
   res.status(201).json({
     message: 'Vote cast successfully',
@@ -65,7 +57,6 @@ const castVote = asyncHandler(async (req, res, next) => {
 });
 
 const getHistory = asyncHandler(async (req, res, next) => {
-  // Updated Query: Fetches real vote counts and hash
   const { data: votes, error } = await supabase
     .from('votes')
     .select(`
@@ -87,10 +78,9 @@ const getHistory = asyncHandler(async (req, res, next) => {
     electionTitle: v.elections?.title,
     status: v.elections?.status,
     myCandidate: v.candidates?.name,
-    myCandidateVotes: v.candidates?.votes, // Real data from Trigger
+    myCandidateVotes: v.candidates?.votes,
     date: v.created_at,
     voteHash: v.vote_hash,
-    // Placeholders for complex "Winner" logic (usually requires separate aggregation)
     winnerName: "TBD",
     winnerVotes: 0
   }));
