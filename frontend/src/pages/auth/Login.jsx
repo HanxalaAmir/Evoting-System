@@ -16,7 +16,7 @@ import {
 const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login } = useAuth(); // Assuming this context function calls authAPI.login
+  const { login } = useAuth();
 
   const role = searchParams.get("role") === "admin" ? "admin" : "voter";
   const isAdmin = role === "admin";
