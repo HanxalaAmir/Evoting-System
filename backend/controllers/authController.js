@@ -143,6 +143,7 @@ const loginUser = asyncHandler(async (req, res, next) => {
 
   // UPDATED: Capture the token to send it in the JSON response
   const token = generateToken(res, user.id, user.role);
+  console.log('Generated token:', token);
 
   res.status(200).json({
     id: user.id,
