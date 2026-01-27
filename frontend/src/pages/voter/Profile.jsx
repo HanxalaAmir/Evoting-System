@@ -15,6 +15,7 @@ import {
   FiRefreshCw,
 } from "react-icons/fi";
 import { authAPI } from "../../services/api";
+import { formatDate } from "../../utils/helpers";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -37,14 +38,16 @@ const Profile = () => {
       setIsLoading(true);
       setError(null);
       const response = await authAPI.getCurrentUser();
-      setUser(response.data);
-      setFormData(response.data);
+      const userData = response.data;
+      setUser(userData);
+      setFormData({
+        full_name: userData.full_name,
+        username: userData.username,
+        email: userData.email,
+        department: userData.department || "General",
+      });
     } catch (err) {
-      console.error("Profile Fetch Error:", err);
-      const msg =
-        err.response?.data?.message ||
-        "Failed to load profile data. Please check your connection.";
-      setError(msg);
+      setError(err.response?.data?.message || "Failed to load profile data.");
     } finally {
       setIsLoading(false);
     }
@@ -66,7 +69,7 @@ const Profile = () => {
         setUser(response.data);
         setIsEditing(false);
       } catch (err) {
-        alert("Failed to update profile. Please try again.");
+        alert("Failed to update profile.");
       } finally {
         setIsSaving(false);
       }
@@ -107,7 +110,7 @@ const Profile = () => {
   if (error) {
     return (
       <DashboardLayout>
-        <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+        <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4">
           <div className="bg-indigo-500/10 p-4 rounded-full mb-4">
             <FiAlertCircle className="w-8 h-8 text-indigo-500" />
           </div>
@@ -117,7 +120,7 @@ const Profile = () => {
           <p className="text-slate-400 mb-6 max-w-md">{error}</p>
           <button
             onClick={fetchProfile}
-            className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg shadow-indigo-500/20 transition-all active:scale-95 text-sm font-bold"
+            className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg transition-all active:scale-95 text-sm font-bold"
           >
             <FiRefreshCw className="w-4 h-4" /> Try Again
           </button>
@@ -130,7 +133,6 @@ const Profile = () => {
     <DashboardLayout>
       <div className="relative mb-10 rounded-3xl bg-slate-900 border border-slate-700/50 overflow-hidden shadow-2xl">
         <div className="h-40 bg-gradient-to-r from-indigo-600 to-purple-800 relative">
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent"></div>
         </div>
 
@@ -138,31 +140,27 @@ const Profile = () => {
           <div className="relative group">
             <div className="w-32 h-32 rounded-full bg-slate-900 p-1.5 shadow-2xl ring-1 ring-slate-700/50">
               <div className="w-full h-full rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-5xl font-bold text-white relative overflow-hidden">
-                {user.fullName ? user.fullName.charAt(0) : <FiUser />}
+                {user.full_name ? user.full_name.charAt(0) : <FiUser />}
               </div>
             </div>
-            <div
-              className="absolute bottom-2 right-2 bg-slate-900 rounded-full p-1.5 border border-slate-700 shadow-lg"
-              title="Verified Voter"
-            >
+            <div className="absolute bottom-2 right-2 bg-slate-900 rounded-full p-1.5 border border-slate-700 shadow-lg">
               <FiCheckCircle className="text-emerald-400 w-5 h-5 fill-current bg-slate-900 rounded-full" />
             </div>
           </div>
 
           <div className="flex-1 text-center md:text-left mb-2">
             <h1 className="text-3xl font-bold text-white tracking-tight leading-tight">
-              {user.fullName}
+              {user.full_name}
             </h1>
             <p className="text-slate-400 text-sm mb-4 font-medium flex items-center justify-center md:justify-start gap-2">
-              {user.role === "admin" ? "Administrator" : "Voter"}{" "}
-              <span className="w-1 h-1 bg-slate-600 rounded-full"></span>{" "}
+              {user.role === "admin" ? "Administrator" : "Voter"}
+              <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
               {user.department || "General"}
             </p>
 
             <div className="flex flex-wrap justify-center md:justify-start gap-3">
               <span className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-xs font-bold text-indigo-300">
-                <FiShield className="w-3.5 h-3.5" />{" "}
-                {user.username || user.indexNo}
+                <FiShield className="w-3.5 h-3.5" /> {user.username}
               </span>
               <span className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs font-medium text-slate-300">
                 <FiMail className="w-3.5 h-3.5" /> {user.email}
@@ -174,7 +172,11 @@ const Profile = () => {
             <button
               onClick={toggleEdit}
               disabled={isSaving}
-              className={`w-full md:w-auto px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${isEditing ? "bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-500/20" : "bg-white text-slate-900 hover:bg-indigo-50"}`}
+              className={`w-full md:w-auto px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${
+                isEditing
+                  ? "bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-500/20"
+                  : "bg-white text-slate-900 hover:bg-indigo-50"
+              }`}
             >
               {isSaving ? (
                 <FiLoader className="animate-spin" />
@@ -206,34 +208,38 @@ const Profile = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                   Full Name
                 </label>
                 <input
                   type="text"
-                  name="fullName"
-                  value={isEditing ? formData.fullName : user.fullName}
+                  name="full_name"
+                  value={isEditing ? formData.full_name : user.full_name}
                   onChange={handleChange}
                   readOnly={!isEditing}
-                  className={`w-full bg-slate-900/50 border rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all ${isEditing ? "border-indigo-500/50 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" : "border-slate-700 cursor-default opacity-70"}`}
+                  className={`w-full bg-slate-900/50 border rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all ${
+                    isEditing
+                      ? "border-indigo-500/50 focus:border-indigo-500"
+                      : "border-slate-700 cursor-default opacity-70"
+                  }`}
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Index / Username
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  System ID / Index
                 </label>
                 <input
                   type="text"
-                  value={user.username || user.indexNo}
+                  value={user.username}
                   readOnly
                   className="w-full bg-slate-900/30 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-400 cursor-not-allowed"
                 />
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  University Email
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Verified Email Address
                 </label>
                 <div className="relative">
                   <input
@@ -244,8 +250,8 @@ const Profile = () => {
                   />
                   <FiLock className="absolute right-4 top-3.5 text-slate-600" />
                 </div>
-                <p className="text-[10px] text-slate-500 mt-1 pl-1">
-                  Official communication channel. Cannot be changed manually.
+                <p className="text-[10px] text-slate-500 mt-1 pl-1 italic">
+                  Identity verification linked to university email.
                 </p>
               </div>
             </div>
@@ -254,8 +260,8 @@ const Profile = () => {
 
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6">
-            <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2 uppercase tracking-wider">
-              <FiLock className="text-slate-500" /> Security Settings
+            <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2 uppercase tracking-wider">
+              <FiLock className="text-slate-500" /> Account Security
             </h3>
 
             <form onSubmit={handlePasswordUpdate} className="space-y-3">
@@ -266,7 +272,7 @@ const Profile = () => {
                 onChange={(e) =>
                   setPasswordData({ ...passwordData, current: e.target.value })
                 }
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 outline-none"
               />
               <input
                 type="password"
@@ -275,7 +281,7 @@ const Profile = () => {
                 onChange={(e) =>
                   setPasswordData({ ...passwordData, new: e.target.value })
                 }
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 outline-none"
               />
               <input
                 type="password"
@@ -284,14 +290,14 @@ const Profile = () => {
                 onChange={(e) =>
                   setPasswordData({ ...passwordData, confirm: e.target.value })
                 }
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 outline-none"
               />
               <Button
                 variant="primary"
                 type="submit"
-                className="w-full mt-2 bg-slate-700 hover:bg-indigo-600 border-0 text-sm py-2.5"
+                className="w-full mt-2 bg-slate-700 hover:bg-indigo-600 border-0 text-sm py-2.5 transition-colors"
               >
-                Update Password
+                Update Credentials
               </Button>
             </form>
           </div>

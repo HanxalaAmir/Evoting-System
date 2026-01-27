@@ -11,8 +11,8 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-900 text-slate-500 gap-3">
         <FiLoader className="w-8 h-8 animate-spin text-indigo-500" />
-        <span className="font-mono text-sm animate-pulse">
-          Verifying Access...
+        <span className="font-mono text-sm animate-pulse tracking-tight">
+          SECURE_AUTH_VERIFICATION...
         </span>
       </div>
     );
@@ -22,10 +22,12 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  const userRole = user.role || user.user?.role;
+  const userRole = user.role;
 
   if (allowedRoles && !allowedRoles.includes(userRole)) {
-    return <Navigate to="/" replace />;
+    const redirectPath =
+      userRole === "admin" ? "/admin/dashboard" : "/voter/dashboard";
+    return <Navigate to={redirectPath} replace />;
   }
 
   return <Outlet />;
