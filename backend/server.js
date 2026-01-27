@@ -13,7 +13,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-const allowedOrigins = [process.env.CLIENT_URL, 'http://localhost:5173'];
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://evotingsystem0.vercel.app',
+  process.env.CLIENT_URL
+].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
