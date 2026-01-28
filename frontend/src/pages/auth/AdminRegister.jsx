@@ -161,7 +161,7 @@ const AdminRegister = () => {
     setErrors({});
     try {
       await authAPI.register({
-        full_name: formData.full_name,
+        fullName: formData.full_name,
         username: formData.username,
         email: formData.email,
         password: formData.password,
