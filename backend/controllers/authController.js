@@ -159,6 +159,11 @@ const logoutUser = asyncHandler(async (req, res, next) => {
     secure: true,
     sameSite: 'none'
   });
+  res.cookie('authToken', '', {
+    expires: new Date(0),
+    secure: true,
+    sameSite: 'lax'
+  });
   res.status(200).json({ message: 'Logged out successfully' });
 });
 

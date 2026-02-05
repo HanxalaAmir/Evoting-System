@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { authAPI } from "../services/api";
+import { setCookie, removeCookie } from "../utils/cookie";
 
 const AuthContext = createContext(null);
 
@@ -27,11 +28,12 @@ export const AuthProvider = ({ children }) => {
       const userData = response.data;
 
       if (userData.token) {
-        localStorage.setItem("authToken", userData.token);
+        setCookie("authToken", userData.token);
       }
 
-      setUser(userData.user || userData);
-      return userData.user || userData;
+      const userProfile = userData.user || userData;
+      setUser(userProfile);
+      return userProfile;
     } catch (error) {
       throw error;
     }
@@ -41,9 +43,8 @@ export const AuthProvider = ({ children }) => {
     try {
       await authAPI.logout();
     } catch (error) {
-      // Handled silently
     } finally {
-      localStorage.removeItem("authToken");
+      removeCookie("authToken");
       setUser(null);
     }
   };
