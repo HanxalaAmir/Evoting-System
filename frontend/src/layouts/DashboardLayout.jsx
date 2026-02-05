@@ -28,9 +28,9 @@ const DashboardLayout = ({ children }) => {
   const handleLogout = async () => {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
+    navigate("/");
     try {
       await logout();
-      navigate("/");
     } catch (error) {
       navigate("/");
     } finally {
