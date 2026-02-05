@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import {
   FiGrid,
   FiCheckSquare,
@@ -11,31 +12,14 @@ import {
   FiX,
   FiLoader,
 } from "react-icons/fi";
-import { authAPI } from "../services/api";
 
 const DashboardLayout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user: currentUser, loading: isLoadingUser, logout } = useAuth();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const response = await authAPI.getCurrentUser();
-        setCurrentUser(response.data);
-      } catch (error) {
-        navigate("/");
-      } finally {
-        setIsLoadingUser(false);
-      }
-    };
-
-    fetchUser();
-  }, [navigate]);
 
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -45,11 +29,9 @@ const DashboardLayout = ({ children }) => {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
     try {
-      await authAPI.logout();
-      localStorage.removeItem("authToken");
+      await logout();
       navigate("/");
     } catch (error) {
-      localStorage.removeItem("authToken");
       navigate("/");
     } finally {
       setIsLoggingOut(false);
