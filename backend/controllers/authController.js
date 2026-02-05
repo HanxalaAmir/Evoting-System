@@ -157,7 +157,8 @@ const logoutUser = asyncHandler(async (req, res, next) => {
     httpOnly: true,
     expires: new Date(0),
     secure: true,
-    sameSite: 'none'
+    sameSite: 'none',
+    path: '/'
   });
   res.cookie('authToken', '', {
     expires: new Date(0),
